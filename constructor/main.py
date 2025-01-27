@@ -9,8 +9,8 @@ n3 = Node(-5, 0)
 bs2 = BeamSegment(n1, n3)
 bs2.add_force(Force(1, 90, 4))
 
-n1.add_support(Support(-90, 0, 1, 5))
+n1.add_support(Support(-90, 1, 0, 5, True))
 n2.add_support(Support(-90, -1, -1, -1))
 
 b1 = Beam([bs1, bs2])
-b1.solve()
+print(b1.solve())

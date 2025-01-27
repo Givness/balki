@@ -64,22 +64,22 @@ class Beam:
         for n in self.nodes:
             if n.support != None:
                 if n.support.v_force > 0:
-                    force_part = n.support.v_force * np.cos(np.deg2rad(n.support.angle + 90))
+                    force_part = n.support.v_force * np.cos(np.deg2rad(n.support.angle))
                     fx = np.append(fx, force_part)
                     t = np.append(t, force_part * (n.y - self.base_node.y))
 
-                    force_part = n.support.v_force * np.sin(np.deg2rad(n.support.angle + 90))
+                    force_part = n.support.v_force * np.sin(np.deg2rad(n.support.angle))
                     fy = np.append(fy, force_part)
-                    t = np.append(t, force_part * (n.x - self.base_node.x))
+                    t = np.append(t, -force_part * (n.x - self.base_node.x))
 
                 if n.support.h_force > 0:
-                    force_part = n.support.h_force * np.cos(np.deg2rad(n.support.angle + 180))
+                    force_part = n.support.h_force * np.cos(np.deg2rad(n.support.angle))
                     fx = np.append(fx, force_part)
                     t = np.append(t, force_part * (n.y - self.base_node.y))
 
-                    force_part = n.support.h_force * np.sin(np.deg2rad(n.support.angle + 180))
+                    force_part = n.support.h_force * np.sin(np.deg2rad(n.support.angle))
                     fy = np.append(fy, force_part)
-                    t = np.append(t, force_part * (n.x - self.base_node.x))
+                    t = np.append(t, -force_part * (n.x - self.base_node.x))
 
                 if n.support.torque> 0:
                     if n.support.torq_dir:
@@ -95,18 +95,19 @@ class Beam:
 
                 force_part = f.value * np.sin(np.deg2rad(f.angle))
                 fy = np.append(fy, force_part)
-                t = np.append(t, force_part * (s.node1.x + f.node1_dist * (s.node2.x - s.node1.x) / s.length - self.base_node.x))
+                t = np.append(t, -force_part * (s.node1.x + f.node1_dist * (s.node2.x - s.node1.x) / s.length - self.base_node.x))
             for torq in s.torques:
                 if torq.direction:
                     t = np.append(t, torq.value)
                 else:
                     t = np.append(t, -torq.value)
         temp = np.round(-np.sum(fx), 5)
-        print(f"Вертикальная реакция опоры:", temp if temp != 0 else 0.0)
+        result = f"Горизонтальная реакция опоры: {temp if temp != 0 else 0.0}\n"
         temp = np.round(-np.sum(fy), 5)
-        print(f"Горизонтальная реакция опоры:", temp if temp != 0 else 0.0)
-        temp = np.round(np.sum(t), 5)
-        print(f"Момент реакции опоры:", temp if temp != 0 else 0.0)
+        result += f"Вертикальная реакция опоры: {temp if temp != 0 else 0.0}\n"
+        temp = np.round(-np.sum(t), 5)
+        result += f"Момент реакции опоры: {temp if temp != 0 else 0.0}"
+        return result
 
     def __repr__(self):
         return f"Beam(segments={self.segments})"
