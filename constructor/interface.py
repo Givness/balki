@@ -6,47 +6,38 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog, QLineEdit, QFormLayout, QDialogButtonBox
 from PyQt6.QtWidgets import QCheckBox
 from PyQt6.QtWidgets import QFileDialog
-
 from PyQt6.QtSvgWidgets import QSvgWidget
-
 from structures import *
 
-# Функция для генерации случайного цвета
 def random_color():
     return QColor(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
-# Класс для координатной плоскости
 class CoordinatePlane(QFrame):
     def __init__(self):
         super().__init__()
         self.setMinimumSize(400, 400)
         self.setStyleSheet("background-color: white;")
         self.scale_factor = 1
-        self.lines = []  
-        self.point_numbers = {}  
-        self.squares = []  # Добавляем список для хранения квадратов
+        self.lines = []
+        self.point_numbers = {}
+        self.squares = []
         self.next_segment_number = 1
-        self.next_point_number = 1 
-
+        self.next_point_number = 1
         self.nodes = []
         self.beam_segments = []
 
     def change_scale(self, factor):
-        self.scale_factor *= factor  # Изменяем масштаб
-        self.scale_factor = max(0.5, min(2.0, self.scale_factor))  # Ограничиваем диапазон от 0.5 до 2.0
-        self.update()  # Перерисовываем поле
+        self.scale_factor *= factor
+        self.scale_factor = max(0.5, min(2.0, self.scale_factor))
+        self.update()
 
     def paintEvent(self, event):
         try:
-
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
             width, height = self.width(), self.height()
             center_x, center_y = width // 2, height // 2
             step = int(40 * self.scale_factor)
-
-            # Рисуем сетку
             grid_pen = QPen(Qt.GlobalColor.lightGray)
             grid_pen.setWidth(1)
             painter.setPen(grid_pen)
@@ -65,7 +56,6 @@ class CoordinatePlane(QFrame):
                 painter.drawLine(0, y, width, y)
                 painter.drawText(center_x + 5, y - 5, f"{(center_y - y) // step}")
 
-            # Рисуем оси
             axis_pen = QPen(Qt.GlobalColor.black)
             axis_pen.setWidth(2)
             painter.setPen(axis_pen)
@@ -73,108 +63,82 @@ class CoordinatePlane(QFrame):
             painter.drawLine(center_x, 0, center_x, height)
             painter.drawLine(0, center_y, width, center_y)
 
-            # Рисуем все линии из списка
             for i, line in enumerate(self.lines, start=1):
                 x1, y1, x2, y2, color = line
-                # Масштабируем координаты линий
                 x1_pixel = center_x + int(x1 * 40 * self.scale_factor)
                 y1_pixel = center_y - int(y1 * 40 * self.scale_factor)
                 x2_pixel = center_x + int(x2 * 40 * self.scale_factor)
                 y2_pixel = center_y - int(y2 * 40 * self.scale_factor)
-
-                # Рисуем линию
                 line_pen = QPen(color)
                 line_pen.setWidth(2)
                 painter.setPen(line_pen)
                 painter.drawLine(x1_pixel, y1_pixel, x2_pixel, y2_pixel)
-
                 painter.setBrush(color)
                 painter.drawText(x1_pixel + (x2_pixel - x1_pixel) // 2 - 5, y1_pixel + (y2_pixel - y1_pixel) // 2 - 5, str(i))
-
-                # Рисуем точки начала и конца линии
-                painter.drawEllipse(x1_pixel - 4, y1_pixel - 4, 8, 8)  # Точка начала
-                painter.drawEllipse(x2_pixel - 4, y2_pixel - 4, 8, 8)  # Точка конца
-
+                painter.drawEllipse(x1_pixel - 4, y1_pixel - 4, 8, 8)
+                painter.drawEllipse(x2_pixel - 4, y2_pixel - 4, 8, 8)
                 painter.setPen(Qt.GlobalColor.black)
                 for (x, y), num in self.point_numbers.items():
                     x_pixel = center_x + int(x * 40 * self.scale_factor)
                     y_pixel = center_y - int(y * 40 * self.scale_factor)
-                    painter.drawText(x_pixel + 5, y_pixel - 5, str(num))  # Отображаем номер точки
+                    painter.drawText(x_pixel + 5, y_pixel - 5, str(num))
 
-            # Рисуем квадраты с углом
             for x, y, color, angle in self.squares:
                 x_pixel = center_x + int(x * 40 * self.scale_factor)
                 y_pixel = center_y - int(y * 40 * self.scale_factor)
                 size = int(30 * self.scale_factor)
                 painter.setBrush(color)
                 painter.setPen(Qt.GlobalColor.black)
-
-                painter.save()  # Сохраняем состояние художника
-                painter.translate(x_pixel, y_pixel)  # Перемещаем точку начала
-                painter.rotate(-angle + 90)  # Поворачиваем
+                painter.save()
+                painter.translate(x_pixel, y_pixel)
+                painter.rotate(-angle + 90)
                 painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("support.svg"))
                 painter.restore()
-
-                # # Рисуем квадрат с учетом угла
-                # painter.save()  # Сохраняем состояние художника
-                # painter.translate(x_pixel, y_pixel)
-                # painter.rotate(-angle)  # Поворачиваем
-                # painter.drawRect(-size // 2, -size // 2, size, size)  # Рисуем квадрат
-                # painter.restore()  # Восстанавливаем состояние
         except Exception as e:
             print(f"Error in paintEvent: {e}")
 
     def draw_line(self, x1, y1, x2, y2):
         try:
-            color = random_color()  # Генерация случайного цвета для линии
+            color = random_color()
             self.next_segment_number += 1
-            self.lines.append((x1, y1, x2, y2, color))  # Добавляем линию с цветом
+            self.lines.append((x1, y1, x2, y2, color))
             for x, y in [(x1, y1), (x2, y2)]:
                 if (x, y) not in self.point_numbers:
                     self.point_numbers[(x, y)] = self.next_point_number
                     self.next_point_number += 1
-
                     self.nodes.append(Node(x, y))
 
             self.beam_segments.append(BeamSegment(self.nodes[self.point_numbers[(x1, y1)] - 1], self.nodes[self.point_numbers[(x2, y2)] - 1]))
-            self.update()  # Перерисовываем поле
+            self.update()
         except Exception as e:
             print(f"Error in draw_line: {e}")
 
     def add_square(self, point_number, angle):
         for (x, y), num in self.point_numbers.items():
             if num == point_number:
-                self.squares.append((x, y, random_color(), angle))  # Добавляем квадрат с цветом и углом
+                self.squares.append((x, y, random_color(), angle))
                 self.update()
                 break
 
     def save_as_image(self, file_path):
-        pixmap = self.grab()  # Создаём снимок виджета
-        pixmap.save(file_path, "JPG")  # Сохраняем в JPEG
+        pixmap = self.grab()
+        pixmap.save(file_path, "JPG")
 
     def draw_vector(self, x1, y1, x2, y2):
-        color = random_color()  # Цвет вектора
-        self.lines.append((x1, y1, x2, y2, color))  # Добавляем вектор как линию
-
-        # Добавляем стрелку в конец вектора
-        arrow_size = 0.2  # Размер стрелки
+        color = random_color()
+        self.lines.append((x1, y1, x2, y2, color))
+        arrow_size = 0.2
         dx, dy = x2 - x1, y2 - y1
         length = (dx**2 + dy**2)**0.5
         if length == 0:
-            return  # Защита от деления на 0
-
-        # Нормализуем вектор
+            return
         dx, dy = dx / length, dy / length
-
-        # Точки для стрелки (по бокам от конца линии)
         left_x = x2 - dx * 0.3 + dy * arrow_size
         left_y = y2 - dy * 0.3 - dx * arrow_size
         right_x = x2 - dx * 0.3 - dy * arrow_size
         right_y = y2 - dy * 0.3 + dx * arrow_size
-
         self.lines.append((left_x, left_y, x2, y2, color))
         self.lines.append((right_x, right_y, x2, y2, color))
-
         self.update()
 
 class InputDialog(QDialog):
@@ -182,29 +146,21 @@ class InputDialog(QDialog):
         super().__init__()
         self.setWindowTitle("Введите координаты")
         self.setFixedSize(300, 120)
-
-        # Создаем форму для ввода координат
         layout = QFormLayout(self)
-
         self.x1_input = QLineEdit(self)
         self.y1_input = QLineEdit(self)
         self.x2_input = QLineEdit(self)
         self.y2_input = QLineEdit(self)
-
         layout.addRow("X1:", self.x1_input)
         layout.addRow("Y1:", self.y1_input)
         layout.addRow("X2:", self.x2_input)
         layout.addRow("Y2:", self.y2_input)
-
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, self)
         layout.addWidget(buttons)
-
-        # Обработка кнопки OK
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
     def get_coordinates(self):
-        # Получаем координаты из полей ввода
         return (
             float(self.x1_input.text()), float(self.y1_input.text()),
             float(self.x2_input.text()), float(self.y2_input.text())
@@ -268,7 +224,7 @@ class SquareInputDialog(QDialog):
 
     def get_data(self):
         point_number = int(self.point_input.text())
-        angle = float(self.angle_input.text())  # Угол в градусах
+        angle = float(self.angle_input.text())
         v_force = float(self.v_force_input.text())
         h_force = float(self.h_force_input.text())
         return point_number, angle, v_force, h_force
@@ -289,19 +245,16 @@ class AnswerDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
-# Основное окно
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Визуализатор")
-        self.setGeometry(100, 100, 800, 500)  # Размер окна
+        self.setGeometry(100, 100, 800, 500)
 
-        # Основной макет
         main_layout = QHBoxLayout(self)
 
-        # Левая панель (меню)
         menu_layout = QVBoxLayout()
-        menu_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Кнопки сверху
+        menu_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         label = QLabel("Меню")
         button1 = QPushButton("Создание балки")
         button2 = QPushButton("Создание опоры")
@@ -327,14 +280,12 @@ class MainWindow(QWidget):
         menu_layout.addWidget(zoom_in_button)
         menu_layout.addWidget(zoom_out_button)
 
-        menu_layout.addStretch()  # Растягиваем, чтобы кнопки были сверху
+        menu_layout.addStretch()
 
-        # Область координатной плоскости
         self.plane = CoordinatePlane()
 
-        # Добавляем в основной макет
-        main_layout.addLayout(menu_layout, 1)  # Левая панель (1/4 ширины)
-        main_layout.addWidget(self.plane, 3)  # Координатная плоскость (3/4 ширины)
+        main_layout.addLayout(menu_layout, 1)
+        main_layout.addWidget(self.plane, 3)
 
         self.setLayout(main_layout)
 
@@ -343,11 +294,10 @@ class MainWindow(QWidget):
         menu_layout.addWidget(save_button)
 
     def on_button1_click(self):
-        # Открываем диалоговое окно для ввода координат
         dialog = InputDialog()
         if dialog.exec() == QDialog.DialogCode.Accepted:
             x1, y1, x2, y2 = dialog.get_coordinates()
-            self.plane.draw_line(x1, y1, x2, y2)  # Рисуем линию
+            self.plane.draw_line(x1, y1, x2, y2)
 
     def on_button2_click(self):
         dialog = SquareInputDialog()
@@ -380,7 +330,6 @@ class MainWindow(QWidget):
         dialog = AnswerDialog(self.plane.beam.solve())
         dialog.exec()
 
-# Запуск приложения
 app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
