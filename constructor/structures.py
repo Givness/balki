@@ -2,34 +2,53 @@ from ids import IDNumerator
 from enum import Enum
 import numpy as np
 import sympy as sp
-import mpmath
+import networkx as nx
+from errors import *
 
 class Force(IDNumerator):
-    def __init__(self, value: np.float64, angle: np.float64, node1_dist: np.float64, length: np.float64=1, unknown: bool=False):
+    def __init__(self, value: np.float64, angle: np.float64, node1_dist: np.float64, length: np.float64 = 1, unknown: bool = False):
         super().__init__()
+
+        if np.isnan(value): raise NotANumberError("Значение силы должно быть числом!")
+        if value < 0: raise NegativeOrZeroValueError("Значение силы не может быть отрицательным!")
         self.value: np.float64 = value
+
+        if np.isnan(angle): raise NotANumberError("Значение угла должно быть числом!")
         self.angle: np.float64 = angle % 360
+
+        if np.isnan(node1_dist): raise NotANumberError("Значение расстояния от конца балки должно быть числом!")
+        if node1_dist < 0: raise NegativeOrZeroValueError("Расстояние от края не может быть отрицательным!")
         self.node1_dist: np.float64 = node1_dist
+
+        if np.isnan(length): raise NotANumberError("Значение длины действия силы должно быть числом!")
+        if length <= 0: raise NegativeOrZeroValueError("Длина действия силы должна быть положительной!")
         self.length: np.float64 = length
+
         self.unknown: bool = unknown
 
     @property
-    def part_x(self) -> np.float64:
-        if self.angle == 0: return self.value * self.length
-        elif self.angle == 180: return -self.value * self.length
-        elif self.angle == 90 or self.angle == 270: return 0
-        else: return np.cos(np.deg2rad(self.angle)) * self.value * self.length
+    def part_x(self):
+        if self.angle in (0, 180):
+            return self.value * self.length * (1 if self.angle == 0 else -1)
+        elif self.angle in (90, 270):
+            return 0
+        else:
+            return np.cos(np.deg2rad(self.angle)) * self.value * self.length
 
     @property
-    def part_y(self) -> np.float64:
-        if self.angle == 0 or self.angle == 180: return 0
-        elif self.angle == 90: return self.value * self.length
-        elif self.angle == 270: return -self.value * self.length
-        else: return np.sin(np.deg2rad(self.angle)) * self.value * self.length
+    def part_y(self):
+        if self.angle in (0, 180):
+            return 0
+        elif self.angle == 90:
+            return self.value * self.length
+        elif self.angle == 270:
+            return -self.value * self.length
+        else:
+            return np.sin(np.deg2rad(self.angle)) * self.value * self.length
 
     def __repr__(self):
         return f"Force(value={self.value}, angle={self.angle}, node1_dist={self.node1_dist}, length={self.length}, unknown={self.unknown})"
-    
+
     class Type(Enum):
         OTHER = 0
         VERTICAL = 1
@@ -37,43 +56,68 @@ class Force(IDNumerator):
 
     @property
     def get_type(self):
-        if self.angle == 0 or self.angle == 180: return Force.Type.HORIZONTAL
-        elif self.angle == 90 or self.angle == 270: return Force.Type.VERTICAL
+        if self.angle in (0, 180): return Force.Type.HORIZONTAL
+        elif self.angle in (90, 270): return Force.Type.VERTICAL
         else: return Force.Type.OTHER
 
 class Torque(IDNumerator):
-    def __init__(self, value: np.float64, node1_dist: np.float64, unknown: bool=False):
+    def __init__(self, value: np.float64, node1_dist: np.float64, unknown: bool = False):
         super().__init__()
+
+        if np.isnan(value): raise NotANumberError("Значение момента должно быть числом!")
         self.value: np.float64 = value
+
+        if np.isnan(node1_dist): raise NotANumberError("Значение расстояния должно быть числом!")
+        if node1_dist < 0: raise NegativeOrZeroValueError("Расстояние не может быть отрицательным!")
         self.node1_dist: np.float64 = node1_dist
+
         self.unknown: bool = unknown
 
     def __repr__(self):
         return f"Torque(value={self.value}, node1_dist={self.node1_dist}, unknown={self.unknown})"
 
 class Support(IDNumerator):
-    def __init__(self, angle: np.float64, force_x: np.float64, force_y: np.float64, torque: np.float64, unknown_fx: bool, unknown_fy: bool, unknown_t: bool):
+    def __init__(self, angle: np.float64, force_x: float, force_y: float, torque: float, unknown_fx: bool, unknown_fy: bool, unknown_t: bool):
         super().__init__()
-        self.angle: np.float64 = angle % 360
+        if np.isnan(angle): raise NotANumberError("Значение угла должно быть числом!")
+        self.angle: float = angle % 360
         self.horizontal_force: Force = Force(force_x, angle, 0, 1, unknown_fx)
         self.vertical_force: Force = Force(force_y, angle + 90, 0, 1, unknown_fy)
         self.torque: Torque = Torque(torque, 0, unknown_t)
 
     def __repr__(self):
         return f"Support(angle={self.angle}, force_x={self.horizontal_force}, force_y={self.vertical_force}, torque={self.torque})"
+    
+    class Type(Enum):
+        FIXED = 0
+        PINNED = 1
+        ROLLER = 2
+
+    @property
+    def get_type(self):
+        if self.torque.value != 0 or self.torque.unknown: return Support.Type.FIXED
+        elif self.horizontal_force.value != 0 or self.horizontal_force.unknown: return Support.Type.PINNED
+        else: return Support.Type.ROLLER
 
 class Node(IDNumerator):
-    def __init__(self, x: np.float64, y: np.float64):
-        super().__init__()
-        self.x: np.float64 = x
-        self.y: np.float64 = y
+    def __init__(self, x: float, y: float, custom_id: int | None = None):
+        super().__init__(custom_id)
+        if np.isnan(x) or np.isnan(y): raise NotANumberError("Координаты должны быть числами!")
+        self.x: float = x
+        self.y: float = y
         self.support: Support = None
 
     def add_support(self, support: Support):
-        self.support: Support = support
+        self.support = support
 
     def __repr__(self):
         return f"Node(coords=({self.x}, {self.y}), support={self.support})"
+
+    def __hash__(self):
+        return hash((self.x, self.y, self.id))  # уникальность через id
+
+    def __eq__(self, other):
+        return isinstance(other, Node) and self.id == other.id
 
 class BeamSegment(IDNumerator):
     def __init__(self, node1: Node, node2: Node):
@@ -82,7 +126,7 @@ class BeamSegment(IDNumerator):
         self.node2: Node = node2
         self.forces: list[Force] = []
         self.torques: list[Torque] = []
-    
+
     def add_force(self, force: Force):
         self.forces.append(force)
 
@@ -91,116 +135,102 @@ class BeamSegment(IDNumerator):
 
     @property
     def length(self):
-        return np.sqrt((self.node1.x - self.node2.x) ** 2 + (self.node1.y - self.node2.y) ** 2)
+        return np.hypot(self.node1.x - self.node2.x, self.node1.y - self.node2.y)
 
     def __repr__(self):
         return f"BeamSegment(from={self.node1}, to={self.node2}, forces={self.forces}, torques={self.torques})"
 
 class Beam(IDNumerator):
-    def __init__(self, segments: list[BeamSegment]=[]):
+    def __init__(self, segments: list[BeamSegment] = []):
         super().__init__()
-        self.segments: list[BeamSegment] = segments
-        self.nodes: list[Node] | set[Node] = set()
+        self.graph = nx.Graph()
         for s in segments:
-            self.nodes.add(s.node1)
-            self.nodes.add(s.node2)
-        self.nodes = list(self.nodes)
+            self.add_segment(s)
+        self.base_node = Node(0, 0, 0)
 
-    def add_segment(self, segment: BeamSegment):
-        self.segments.append(segment)
+    def add_node(self, node: Node):
+        for existing_node in self.graph.nodes:
+            if existing_node.x == node.x and existing_node.y == node.y:
+                return existing_node
+
+        self.graph.add_node(node)
+        return node
+
+    def add_segment(self, segment: BeamSegment) -> BeamSegment:
+        node1 = self.add_node(segment.node1)
+        node2 = self.add_node(segment.node2)
+
+        if self.graph.has_edge(node1, node2):
+            return self.graph[node1][node2]['object']
+
+        self.graph.add_edge(node1, node2, object=segment)
+        return segment
+
+    def get_segments(self):
+        return [data['object'] for _, _, data in self.graph.edges(data=True)]
+
+    def get_nodes(self):
+        return list(self.graph.nodes)
 
     def solve(self):
-        fx_dict: dict[str: str | np.float64] = {}
-        fy_dict: dict[str: str | np.float64] = {}
-        t_dict: dict[str: str | np.float64] = {}
+        if not nx.is_connected(self.graph):
+            raise DividedBeamError("Балка состоит из несвязанных сегментов!")
 
-        self.base_node: Node = Node(0, 0)
+        fx_dict, fy_dict, t_dict = {}, {}, {}
 
-        def add_force_parts(obj_name: str, force: Force, x: np.float64, y: np.float64):
+        def add_force_parts(name: str, force: Force, x: float, y: float):
             if force.get_type != Force.Type.VERTICAL:
-                force_part = force.part_x
-                fx_dict[f'{obj_name}_part_x'] = '?' if force.unknown else force_part
-                delta_y = y - self.base_node.y
-                if delta_y == 0:
-                    t_dict[f'{obj_name}_part_x_torque'] = 0
-                else:
-                    t_dict[f'{obj_name}_part_x_torque'] = f'{delta_y} * {obj_name}_part_x' if force.unknown else force_part * delta_y
+                part = force.part_x
+                fx_dict[f'{name}_x'] = '?' if force.unknown else part
+                dy = y - self.base_node.y
+                t_dict[f'{name}_x_torque'] = 0 if dy == 0 else f'{dy}*{name}_x' if force.unknown else part * dy
+
             if force.get_type != Force.Type.HORIZONTAL:
-                force_part = force.part_y
-                fy_dict[f'{obj_name}_part_y'] = '?' if force.unknown else force_part
-                delta_x = x - self.base_node.x
-                if delta_x == 0:
-                    t_dict[f'{obj_name}_part_x_torque'] = 0
-                else:
-                    t_dict[f'{obj_name}_part_y_torque'] = f'{delta_x} * {obj_name}_part_y' if force.unknown else force_part * delta_x
+                part = force.part_y
+                fy_dict[f'{name}_y'] = '?' if force.unknown else part
+                dx = x - self.base_node.x
+                t_dict[f'{name}_y_torque'] = 0 if dx == 0 else f'{dx}*{name}_y' if force.unknown else part * dx
 
-        for node_number, node in enumerate(self.nodes):
+        for node in self.get_nodes():
+            nid = f'node_{node.id}'
             if node.support:
-                if node.support.vertical_force:
-                    add_force_parts(f'node_{node_number}_vertical_force', node.support.vertical_force, node.x, node.y)
+                add_force_parts(f'{nid}_vertical', node.support.vertical_force, node.x, node.y)
+                add_force_parts(f'{nid}_horizontal', node.support.horizontal_force, node.x, node.y)
+                t_dict[f'{nid}_torque'] = '?' if node.support.torque.unknown else node.support.torque.value
 
-                if node.support.horizontal_force:
-                    add_force_parts(f'node_{node_number}_horizontal_force', node.support.horizontal_force, node.x, node.y)
-
-                if node.support.torque:
-                    t_dict[f'node_{node_number}_torque'] = '?' if node.support.torque.unknown else node.support.torque.value
-
-        for segment_number, segment in enumerate(self.segments):
-            for force_number, force in enumerate(segment.forces):
+        for segment in self.get_segments():
+            sid = f'segment_{segment.id}'
+            for i, force in enumerate(segment.forces):
                 x = segment.node1.x + force.node1_dist * (segment.node2.x - segment.node1.x) / segment.length
                 y = segment.node1.y + force.node1_dist * (segment.node2.y - segment.node1.y) / segment.length
-                add_force_parts(f'segment_{segment_number}_force_{force_number}', force, x, y)
+                add_force_parts(f'{sid}_force_{i}', force, x, y)
+            for i, torque in enumerate(segment.torques):
+                t_dict[f'{sid}_torque_{i}'] = '?' if torque.unknown else torque.value
 
-            for torque_number, torque in enumerate(segment.torques):
-                t_dict[f'segment_{segment_number}_torque_{torque_number}'] = '?' if torque.unknown else torque.value
-
-        # print(fx_dict)
-        # print(fy_dict)
-        # print(t_dict)
-
-        eqs: list[sp.Eq] = [
+        eqs = [
             sp.Eq(sp.simplify(' + '.join(fx_dict.keys())), 0),
             sp.Eq(sp.simplify(' + '.join(fy_dict.keys())), 0),
             sp.Eq(sp.simplify(' + '.join(t_dict.keys())), 0)
         ]
 
-        secondary_eqs: list[sp.Eq] = []
-        unknowns: list[str] = []
-        all_symbols: list[str] = []
+        secondary_eqs = []
+        unknowns = []
+        all_symbols = []
 
         for d in (fx_dict, fy_dict, t_dict):
             for key, val in d.items():
                 if val == '?':
                     unknowns.append(key)
                 else:
-                    secondary_eqs.append(
-                        sp.Eq(sp.Symbol(key), sp.simplify(val))
-                    )
+                    secondary_eqs.append(sp.Eq(sp.Symbol(key), sp.simplify(val)))
                 all_symbols.append(key)
 
-        print('Eqs:')
-        for eq in eqs + secondary_eqs:
-            print(eq)
+        if len(unknowns) > 3:
+            raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
 
-        print('Unknowns:')
-        for u in unknowns:
-            print(u)
-        
-        solution: dict = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
-        print('Solution:')
-        for key, val in solution.items():
-            print(f'{key} = {val}')
-
-        answer = {key: val for key, val in solution.items() if str(key) in unknowns}
-        print(f"Answer: {answer}")
-
-        # temp = np.round(fx, 5)
-        # result = f"Горизонтальная реакция опоры: {temp if temp != 0 else 0.0}\n"
-        # temp = np.round(fy, 5)
-        # result += f"Вертикальная реакция опоры: {temp if temp != 0 else 0.0}\n"
-        # temp = np.round(t, 5)
-        # result += f"Момент реакции опоры: {temp if temp != 0 else 0.0}"
-        # return result
+        solution = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
+        answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
+        return answer
 
     def __repr__(self):
-        return f"Beam(segments={self.segments})"
+        return f"Beam(segments={self.get_segments()})"

@@ -3,26 +3,41 @@ from enum import Enum
 import numpy as np
 import sympy as sp
 import mpmath
+from errors import *
 
 class Force(IDNumerator):
     def __init__(self, value: np.float64, angle: np.float64, node1_dist: np.float64, length: np.float64=1, unknown: bool=False):
         super().__init__()
+
+        if np.isnan(value): raise NotANumberError("Значение силы должно быть числом!")
+        if value < 0: raise NegativeOrZeroValueError("Значение силы не может быть отрицательным!")
         self.value: np.float64 = value
-        self.angle: np.float64 = angle
+
+        if np.isnan(angle): raise NotANumberError("Значение угла должно быть числом!")
+        self.angle: np.float64 = angle % 360
+
+        if np.isnan(node1_dist): raise NotANumberError("Значение расстояния от конца балки должно быть числом!")
+        if node1_dist < 0: raise NegativeOrZeroValueError("Расстояние от конца балки не может быть отрицательным!")
         self.node1_dist: np.float64 = node1_dist
+        
+        if np.isnan(length): raise NotANumberError("Значение длины действия силы должно быть числом!")
+        if length < 0: raise NegativeOrZeroValueError("Длина действия силы не может быть отрицательной!")
         self.length: np.float64 = length
+
         self.unknown: bool = unknown
 
     @property
     def part_x(self) -> np.float64:
-        if self.angle == 0 or self.angle == 180: return self.value * self.length
+        if self.angle == 0: return self.value * self.length
+        elif self.angle == 180: return -self.value * self.length
         elif self.angle == 90 or self.angle == 270: return 0
         else: return np.cos(np.deg2rad(self.angle)) * self.value * self.length
 
     @property
     def part_y(self) -> np.float64:
         if self.angle == 0 or self.angle == 180: return 0
-        elif self.angle == 90 or self.angle == 270: return self.value * self.length
+        elif self.angle == 90: return self.value * self.length
+        elif self.angle == 270: return -self.value * self.length
         else: return np.sin(np.deg2rad(self.angle)) * self.value * self.length
 
     def __repr__(self):
@@ -37,12 +52,19 @@ class Force(IDNumerator):
     def get_type(self):
         if self.angle == 0 or self.angle == 180: return Force.Type.HORIZONTAL
         elif self.angle == 90 or self.angle == 270: return Force.Type.VERTICAL
-        else: Force.Type.OTHER
+        else: return Force.Type.OTHER
 
 class Torque(IDNumerator):
     def __init__(self, value: np.float64, node1_dist: np.float64, unknown: bool=False):
+        super().__init__()
+        
+        if np.isnan(value): raise NotANumberError("Значение силы должно быть числом!")
         self.value: np.float64 = value
+
+        if np.isnan(node1_dist): raise NotANumberError("Значение расстояния от конца балки должно быть числом!")
+        if node1_dist < 0: raise NegativeOrZeroValueError("Расстояние от конца балки не может быть отрицательным!")
         self.node1_dist: np.float64 = node1_dist
+
         self.unknown: bool = unknown
 
     def __repr__(self):
@@ -50,16 +72,22 @@ class Torque(IDNumerator):
 
 class Support(IDNumerator):
     def __init__(self, angle: np.float64, force_x: np.float64, force_y: np.float64, torque: np.float64, unknown_fx: bool, unknown_fy: bool, unknown_t: bool):
-        self.angle: np.float64 = angle
-        self.force_x: Force = Force(force_x, angle, 0, 1, unknown_fx)
-        self.force_y: Force = Force(force_y, angle + 90, 0, 1, unknown_fy)
+        super().__init__()
+
+        if np.isnan(angle): raise NotANumberError("Значение угла должно быть числом!")
+        self.angle: np.float64 = angle % 360
+        self.horizontal_force: Force = Force(force_x, angle, 0, 1, unknown_fx)
+        self.vertical_force: Force = Force(force_y, angle + 90, 0, 1, unknown_fy)
         self.torque: Torque = Torque(torque, 0, unknown_t)
 
     def __repr__(self):
-        return f"Support(angle={self.angle}, force_x={self.force_x}, force_y={self.force_y}, torque={self.torque})"
+        return f"Support(angle={self.angle}, force_x={self.horizontal_force}, force_y={self.vertical_force}, torque={self.torque})"
 
 class Node(IDNumerator):
     def __init__(self, x: np.float64, y: np.float64):
+        super().__init__()
+
+        if np.isnan(x) or np.isnan(y): raise NotANumberError("Координаты точки должны быть числами!")
         self.x: np.float64 = x
         self.y: np.float64 = y
         self.support: Support = None
@@ -72,6 +100,7 @@ class Node(IDNumerator):
 
 class BeamSegment(IDNumerator):
     def __init__(self, node1: Node, node2: Node):
+        super().__init__()
         self.node1: Node = node1
         self.node2: Node = node2
         self.forces: list[Force] = []
@@ -92,8 +121,9 @@ class BeamSegment(IDNumerator):
 
 class Beam(IDNumerator):
     def __init__(self, segments: list[BeamSegment]=[]):
+        super().__init__()
         self.segments: list[BeamSegment] = segments
-        self.nodes: list[Node] = set()
+        self.nodes: list[Node] | set[Node] = set()
         for s in segments:
             self.nodes.add(s.node1)
             self.nodes.add(s.node2)
@@ -103,73 +133,100 @@ class Beam(IDNumerator):
         self.segments.append(segment)
 
     def solve(self):
-        fx: sp.Eq = 0
-        fy: sp.Eq = 0
-        t: sp.Eq = 0
+        fx_dict: dict[str: str | np.float64] = {}
+        fy_dict: dict[str: str | np.float64] = {}
+        t_dict: dict[str: str | np.float64] = {}
 
         self.base_node: Node = Node(0, 0)
 
-        self.na_forces: list[Force] = []
-        self.na_torques: list[Torque] = []
+        def add_force_parts(obj_name: str, force: Force, x: np.float64, y: np.float64):
+            if force.get_type != Force.Type.VERTICAL:
+                force_part = force.part_x
+                fx_dict[f'{obj_name}_part_x'] = '?' if force.unknown else force_part
+                delta_y = y - self.base_node.y
+                if delta_y == 0:
+                    t_dict[f'{obj_name}_part_x_torque'] = 0
+                else:
+                    t_dict[f'{obj_name}_part_x_torque'] = f'{delta_y} * {obj_name}_part_x' if force.unknown else force_part * delta_y
+            if force.get_type != Force.Type.HORIZONTAL:
+                force_part = force.part_y
+                fy_dict[f'{obj_name}_part_y'] = '?' if force.unknown else force_part
+                delta_x = x - self.base_node.x
+                if delta_x == 0:
+                    t_dict[f'{obj_name}_part_x_torque'] = 0
+                else:
+                    t_dict[f'{obj_name}_part_y_torque'] = f'{delta_x} * {obj_name}_part_y' if force.unknown else force_part * delta_x
 
-        for n in self.nodes:
-            if n.support != None:
-                if n.support.force_y != None:
-                    if n.support.force_y.unknown:
-                        self.na_forces.append(n.support.force_y)
-                    elif n.support.force_y.value > 0:
-                        force_part = n.support.force_y.part_x
-                        fx += force_part
-                        t += force_part * (self.base_node.y - n.y)
+        for node_number, node in enumerate(self.nodes):
+            if node.support:
+                if node.support.vertical_force:
+                    add_force_parts(f'node_{node_number}_vertical_force', node.support.vertical_force, node.x, node.y)
 
-                        force_part = n.support.force_y.part_y
-                        fy += force_part
-                        t += force_part * (self.base_node.x - n.x)
+                if node.support.horizontal_force:
+                    add_force_parts(f'node_{node_number}_horizontal_force', node.support.horizontal_force, node.x, node.y)
 
-                if n.support.force_x != None:
-                    if n.support.force_x.unknown:
-                        self.na_forces.append(n.support.force_x)
-                    elif n.support.force_x.value > 0:
-                        force_part = n.support.force_x.part_x
-                        fx += force_part
-                        t += force_part * (self.base_node.y - n.y)
+                if node.support.torque:
+                    t_dict[f'node_{node_number}_torque'] = '?' if node.support.torque.unknown else node.support.torque.value
 
-                        force_part = n.support.force_x.part_y
-                        fy += force_part
-                        t += force_part * (self.base_node.x - n.x)
+        for segment_number, segment in enumerate(self.segments):
+            for force_number, force in enumerate(segment.forces):
+                x = segment.node1.x + force.node1_dist * (segment.node2.x - segment.node1.x) / segment.length
+                y = segment.node1.y + force.node1_dist * (segment.node2.y - segment.node1.y) / segment.length
+                add_force_parts(f'segment_{segment_number}_force_{force_number}', force, x, y)
 
-                if n.support.torque != None:
-                    if n.support.torque.unknown:
-                        self.na_torques.append(n.support.torque)
-                    elif n.support.torque.value != 0:
-                        t += n.support.torque.value
+            for torque_number, torque in enumerate(segment.torques):
+                t_dict[f'segment_{segment_number}_torque_{torque_number}'] = '?' if torque.unknown else torque.value
 
-        for s in self.segments:
-            for f in s.forces:
-                if f.unknown:
-                    self.na_forces.append(f)
-                elif f.value > 0:
-                    force_part = f.part_x
-                    fx += force_part
-                    t += force_part * (self.base_node.y - (s.node1.y + f.node1_dist * (s.node2.y - s.node1.y) / s.length))
+        # print(fx_dict)
+        # print(fy_dict)
+        # print(t_dict)
 
-                    force_part = f.part_y
-                    fy += force_part
-                    t += force_part * (self.base_node.x - (s.node1.x + f.node1_dist * (s.node2.x - s.node1.x) / s.length))
+        eqs: list[sp.Eq] = [
+            sp.Eq(sp.simplify(' + '.join(fx_dict.keys())), 0),
+            sp.Eq(sp.simplify(' + '.join(fy_dict.keys())), 0),
+            sp.Eq(sp.simplify(' + '.join(t_dict.keys())), 0)
+        ]
 
-            for torq in s.torques:
-                if torq.unknown:
-                    self.na_torques.append(torq)
-                elif torq.value != 0:
-                    t += torq.value
+        secondary_eqs: list[sp.Eq] = []
+        unknowns: list[str] = []
+        all_symbols: list[str] = []
 
-        temp = np.round(fx, 5)
-        result = f"Горизонтальная реакция опоры: {temp if temp != 0 else 0.0}\n"
-        temp = np.round(fy, 5)
-        result += f"Вертикальная реакция опоры: {temp if temp != 0 else 0.0}\n"
-        temp = np.round(t, 5)
-        result += f"Момент реакции опоры: {temp if temp != 0 else 0.0}"
-        return result
+        for d in (fx_dict, fy_dict, t_dict):
+            for key, val in d.items():
+                if val == '?':
+                    unknowns.append(key)
+                else:
+                    secondary_eqs.append(
+                        sp.Eq(sp.Symbol(key), sp.simplify(val))
+                    )
+                all_symbols.append(key)
+
+        if len(unknowns) > 3:
+            raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
+
+        print('Eqs:')
+        for eq in eqs + secondary_eqs:
+            print(eq)
+
+        print('Unknowns:')
+        for u in unknowns:
+            print(u)
+        
+        solution: dict = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
+        print('Solution:')
+        for key, val in solution.items():
+            print(f'{key} = {val}')
+
+        answer = {key: val for key, val in solution.items() if str(key) in unknowns}
+        print(f"Answer: {answer}")
+
+        # temp = np.round(fx, 5)
+        # result = f"Горизонтальная реакция опоры: {temp if temp != 0 else 0.0}\n"
+        # temp = np.round(fy, 5)
+        # result += f"Вертикальная реакция опоры: {temp if temp != 0 else 0.0}\n"
+        # temp = np.round(t, 5)
+        # result += f"Момент реакции опоры: {temp if temp != 0 else 0.0}"
+        # return result
 
     def __repr__(self):
         return f"Beam(segments={self.segments})"
