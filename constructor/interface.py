@@ -218,7 +218,10 @@ class GridWidget(QWidget):
 
                 painter.save()
                 painter.translate(x, y)
-                painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("circlearrow.svg"))
+                if torque.value < 0:
+                    painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("circlearrow.svg").transformed(QTransform().scale(-1, 1)))
+                else:
+                    painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("circlearrow.svg"))
                 painter.restore()
 
                 text = f'{torque.value} Нм'
