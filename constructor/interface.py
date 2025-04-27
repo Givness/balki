@@ -273,7 +273,7 @@ class GridWidget(QWidget):
                 size = 35 if size > 35 else size
                 painter.save()
                 painter.translate(x, y)
-                painter.rotate(node.support.angle)
+                painter.rotate(-node.support.angle)
                                 
                 image = None
                 match node.support.get_type:
