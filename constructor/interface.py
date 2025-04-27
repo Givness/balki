@@ -359,7 +359,7 @@ class GridWidget(QWidget):
 
 
 class BeamSegmentDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_values=None):
         super().__init__(parent)
         self.setWindowTitle("Добавить сегмент балки")
 
@@ -373,36 +373,38 @@ class BeamSegmentDialog(QDialog):
             row.addWidget(input_field)
             layout.addLayout(row)
 
-        self.button_ok = QPushButton("ОК")
-        self.button_ok.clicked.connect(self.validate_and_accept)
-        layout.addWidget(self.button_ok)
+        if default_values:
+            for field, value in zip(self.inputs, default_values):
+                field.setText(str(value))
+
+        button_ok = QPushButton("ОК")
+        button_ok.clicked.connect(self.validate_and_accept)
+        layout.addWidget(button_ok)
 
         self.setLayout(layout)
+        self._data = None
 
     def validate_and_accept(self):
         try:
-            [float(field.text()) for field in self.inputs]
+            values = [float(field.text()) for field in self.inputs]
+            self._data = values
             self.accept()
-        except Exception as e:
+        except Exception:
             QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
 
     def get_data(self):
-        try:
-            return [float(field.text()) for field in self.inputs]
-        except Exception:
-            return None
+        return self._data
 
 
 class SupportDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_values=None):
         super().__init__(parent)
         self.setWindowTitle("Добавить опору")
 
-        combo_box = QComboBox()
-        combo_box.addItems(["Жёсткая заделка", "Шарнирно-неподвижная", "Шарнирно-подвижная"])
-
-        self.inputs = [QLineEdit(), combo_box, QLineEdit()]
+        self.inputs = [QLineEdit(), QComboBox(), QLineEdit()]
+        self.inputs[1].addItems(["Жёсткая заделка", "Шарнирно-неподвижная", "Шарнирно-подвижная"])
         labels = ["Номер узла:", "Тип опоры:", "Угол:"]
+
         layout = QVBoxLayout()
 
         for label, input_field in zip(labels, self.inputs):
@@ -411,33 +413,39 @@ class SupportDialog(QDialog):
             row.addWidget(input_field)
             layout.addLayout(row)
 
+        if default_values:
+            self.inputs[0].setText(str(default_values[0]))
+            self.inputs[1].setCurrentIndex(default_values[1])
+            self.inputs[2].setText(str(default_values[2]))
+
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.validate_and_accept)
         layout.addWidget(button_ok)
 
         self.setLayout(layout)
+        self._data = None
 
     def validate_and_accept(self):
         try:
-            int(self.inputs[0].text()), Support.Type(self.inputs[1].currentIndex()), float(self.inputs[2].text())
+            node_number = int(self.inputs[0].text())
+            support_type = self.inputs[1].currentIndex()
+            angle = float(self.inputs[2].text())
+            self._data = (node_number, support_type, angle)
             self.accept()
-        except Exception as e:
+        except Exception:
             QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
 
     def get_data(self):
-        try:
-            return int(self.inputs[0].text()), Support.Type(self.inputs[1].currentIndex()), float(self.inputs[2].text())
-        except Exception:
-            return None
+        return self._data
 
 
 class ForceDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_values=None):
         super().__init__(parent)
         self.setWindowTitle("Добавить силу")
 
         self.inputs = [QLineEdit(), QLineEdit(), QLineEdit(), QLineEdit(), QCheckBox(), QLineEdit()]
-        labels = ["Номер балки:", "Отступ:", "Значение:", "Угол:", "Распеределённая:", "Длина"]
+        labels = ["Номер балки:", "Отступ:", "Значение:", "Угол:", "Распределённая:", "Длина"]
         layout = QVBoxLayout()
 
         for label, input_field in zip(labels, self.inputs):
@@ -449,47 +457,49 @@ class ForceDialog(QDialog):
         self.inputs[4].stateChanged.connect(self.toggle_length_field)
         self.toggle_length_field()
 
+        if default_values:
+            self.inputs[0].setText(str(default_values[0]))
+            self.inputs[1].setText(str(default_values[1]))
+            self.inputs[2].setText(str(default_values[2]))
+            self.inputs[3].setText(str(default_values[3]))
+            if default_values[4] != 1:
+                self.inputs[4].setChecked(True)
+                self.inputs[5].setText(str(default_values[4]))
+            else:
+                self.inputs[4].setChecked(False)
+
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.validate_and_accept)
         layout.addWidget(button_ok)
 
         self.setLayout(layout)
+        self._data = None
 
     def toggle_length_field(self):
-        state = self.inputs[4].checkState()
-        length_field = self.inputs[5]
-        if state == Qt.CheckState.Checked:
-            length_field.setEnabled(True)
-            length_field.setStyleSheet("")
+        if self.inputs[4].isChecked():
+            self.inputs[5].setEnabled(True)
         else:
-            length_field.setStyleSheet("background-color: #888; color: #444;")
-            length_field.setEnabled(False)
+            self.inputs[5].setEnabled(False)
 
     def validate_and_accept(self):
         try:
-            Force(float(self.inputs[2].text()), float(self.inputs[3].text()), float(self.inputs[1].text()))
-            int(self.inputs[0].text())
-            if self.inputs[4].isChecked():
-                float(self.inputs[5].text())
+            segment_number = int(self.inputs[0].text())
+            offset = float(self.inputs[1].text())
+            value = float(self.inputs[2].text())
+            angle = float(self.inputs[3].text())
+            length = float(self.inputs[5].text()) if self.inputs[4].isChecked() else 1
+
+            self._data = (segment_number, offset, value, angle, length)
             self.accept()
-        except (NotANumberError, NegativeOrZeroValueError) as e:
-            QMessageBox.critical(self, "Ошибка!", str(e))
         except Exception:
             QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
 
     def get_data(self):
-        try:
-            return int(self.inputs[0].text()), \
-            float(self.inputs[1].text()), \
-            float(self.inputs[2].text()), \
-            float(self.inputs[3].text()), \
-            float(self.inputs[5].text()) if self.inputs[4].isChecked() else 1
-        except Exception:
-            return None
+        return self._data
 
 
 class TorqueDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_values=None):
         super().__init__(parent)
         self.setWindowTitle("Добавить момент")
 
@@ -503,30 +513,31 @@ class TorqueDialog(QDialog):
             row.addWidget(input_field)
             layout.addLayout(row)
 
+        if default_values:
+            for field, value in zip(self.inputs, default_values):
+                field.setText(str(value))
+
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.validate_and_accept)
         layout.addWidget(button_ok)
 
         self.setLayout(layout)
+        self._data = None
 
     def validate_and_accept(self):
         try:
-            Torque(float(self.inputs[2].text()), float(self.inputs[1].text()), False)
-            int(self.inputs[0].text())
+            segment_number = int(self.inputs[0].text())
+            offset = float(self.inputs[1].text())
+            value = float(self.inputs[2].text())
+
+            self._data = (segment_number, offset, value)
             self.accept()
-        except (NotANumberError, NegativeOrZeroValueError) as e:
-            QMessageBox.critical(self, "Ошибка!", str(e))
         except Exception:
             QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
 
     def get_data(self):
-        try:
-            return int(self.inputs[0].text()), \
-            float(self.inputs[1].text()), \
-            float(self.inputs[2].text())
-        except Exception:
-            return None
-
+        return self._data
+    
 
 class SolveDialog(QDialog):
     def __init__(self, answers: dict[str: float], parent=None):
@@ -552,50 +563,161 @@ class SolveDialog(QDialog):
         self.setLayout(layout)
 
 
+from PyQt6.QtWidgets import *
+from PyQt6.QtCore import Qt
+from errors import IncorrectInputError, NonExistentError, NegativeOrZeroValueError, NotANumberError
+from structures import Force, Torque, Support, BeamSegment, Node, Beam
+
+# Диалоги (BeamSegmentDialog, SupportDialog, ForceDialog, TorqueDialog) - определены выше
+
+class DialogManager:
+    def __init__(self, grid_widget):
+        self.grid_widget = grid_widget
+
+    def open_segment_dialog(self):
+        default_data = None
+        while True:
+            dialog = BeamSegmentDialog(None, default_data)
+            if not dialog.exec():
+                break
+            try:
+                x1, y1, x2, y2 = dialog.get_data()
+                node1 = Node(x1, y1)
+                node2 = Node(x2, y2)
+                self.grid_widget.beam.add_segment(BeamSegment(node1, node2))
+                self.grid_widget.update()
+                break
+            except Exception as e:
+                QMessageBox.critical(None, "Ошибка!", str(e))
+                default_data = dialog.get_data()
+
+    def open_support_dialog(self):
+        default_data = None
+        while True:
+            dialog = SupportDialog(None, default_data)
+            if not dialog.exec():
+                break
+            try:
+                node_number, support_type_index, angle = dialog.get_data()
+                if node_number < 1 or node_number not in self.grid_widget.node_mapping:
+                    raise NonExistentError(f"Узел {node_number} не существует!")
+                ufx = support_type_index != Support.Type.ROLLER.value
+                ut = support_type_index == Support.Type.FIXED.value
+                self.grid_widget.node_mapping[node_number].add_support(Support(angle, 0, 0, 0, ufx, True, ut))
+                self.grid_widget.update()
+                break
+            except Exception as e:
+                QMessageBox.critical(None, "Ошибка!", str(e))
+                default_data = dialog.get_data()
+
+    def open_force_dialog(self):
+        default_data = None
+        while True:
+            dialog = ForceDialog(None, default_data)
+            if not dialog.exec():
+                break
+            try:
+                segment_number, offset, value, angle, length = dialog.get_data()
+                if segment_number not in self.grid_widget.segment_mapping:
+                    raise NonExistentError(f"Сегмент балки {segment_number} не существует!")
+                force = Force(value, angle, offset, length, False)
+                self.grid_widget.segment_mapping[segment_number].add_force(force)
+                self.grid_widget.update()
+                break
+            except Exception as e:
+                QMessageBox.critical(None, "Ошибка!", str(e))
+                default_data = dialog.get_data()
+
+    def open_torque_dialog(self):
+        default_data = None
+        while True:
+            dialog = TorqueDialog(None, default_data)
+            if not dialog.exec():
+                break
+            try:
+                segment_number, offset, value = dialog.get_data()
+                if segment_number not in self.grid_widget.segment_mapping:
+                    raise NonExistentError(f"Сегмент балки {segment_number} не существует!")
+                torque = Torque(value, offset, False)
+                self.grid_widget.segment_mapping[segment_number].add_torque(torque)
+                self.grid_widget.update()
+                break
+            except Exception as e:
+                QMessageBox.critical(None, "Ошибка!", str(e))
+                default_data = dialog.get_data()
+
+    def open_solve_dialog(self):
+        solve = {}
+        try:
+            solve = self.grid_widget.beam.solve()
+        except Exception as e:
+            QMessageBox.critical(None, "Ошибка!", str(e))
+            return
+
+        dialog = QDialog()
+        dialog.setWindowTitle("Результаты расчёта")
+        layout = QVBoxLayout()
+
+        for key, value in solve.items():
+            row = QHBoxLayout()
+            row.addWidget(QLabel(f"{key}:"))
+            result_field = QLineEdit(str(value))
+            result_field.setReadOnly(True)
+            row.addWidget(result_field)
+            layout.addLayout(row)
+
+        button_ok = QPushButton("ОК")
+        button_ok.clicked.connect(dialog.accept)
+        layout.addWidget(button_ok)
+
+        dialog.setLayout(layout)
+        dialog.exec()
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
 
         layout = QHBoxLayout()
         self.grid_widget = GridWidget()
+        self.dialogs = DialogManager(self.grid_widget)
 
-        # Левая панель с кнопкой
         left_layout = QVBoxLayout()
 
         add_segment_button = QPushButton("Добавить сегмент балки")
-        add_segment_button.clicked.connect(self.open_segment_dialog)
+        add_segment_button.clicked.connect(self.dialogs.open_segment_dialog)
         left_layout.addWidget(add_segment_button)
 
         add_support_button = QPushButton("Добавить опору")
-        add_support_button.clicked.connect(self.open_support_dialog)
+        add_support_button.clicked.connect(self.dialogs.open_support_dialog)
         left_layout.addWidget(add_support_button)
 
         add_force_button = QPushButton("Добавить силу")
-        add_force_button.clicked.connect(self.open_force_dialog)
+        add_force_button.clicked.connect(self.dialogs.open_force_dialog)
         left_layout.addWidget(add_force_button)
 
         add_torque_button = QPushButton("Добавить момент")
-        add_torque_button.clicked.connect(self.open_torque_dialog)
+        add_torque_button.clicked.connect(self.dialogs.open_torque_dialog)
         left_layout.addWidget(add_torque_button)
 
         solve_button = QPushButton("Посчитать")
-        solve_button.clicked.connect(self.open_solve_dialog)
+        solve_button.clicked.connect(self.dialogs.open_solve_dialog)
         left_layout.addWidget(solve_button)
 
         reset_offset_button = QPushButton("Вернуться к началу координат")
         reset_offset_button.clicked.connect(self.grid_widget.resetOffset)
         left_layout.addWidget(reset_offset_button)
 
+        clear_button = QPushButton("Очистить поле")
+        clear_button.clicked.connect(self.clear_button_message)
+        left_layout.addWidget(clear_button)
+
         save_button = QPushButton("Сохранить балку")
-        save_button.clicked.connect(lambda: self.grid_widget.beam.save_to_file("beam.bm"))
+        save_button.clicked.connect(self.save_beam)
         left_layout.addWidget(save_button)
 
-        def load_beam():
-            self.grid_widget.beam = Beam.load_from_file()
-            self.grid_widget.update()
-
         load_button = QPushButton("Загрузить балку")
-        load_button.clicked.connect(load_beam)
+        load_button.clicked.connect(self.load_beam)
         left_layout.addWidget(load_button)
 
         left_widget = QWidget()
@@ -606,76 +728,67 @@ class MainWindow(QWidget):
         layout.addWidget(self.grid_widget)
         self.setLayout(layout)
 
-    def open_segment_dialog(self):
-        dialog = BeamSegmentDialog(self)
-        if dialog.exec():
+    def save_beam(self):
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить балку",
+            "",
+            "Файлы балки (*.bm);;Все файлы (*)"
+        )
+        if filename:
+            if not filename.endswith(".bm"):
+                filename += ".bm"
             try:
-                coords = dialog.get_data()
-                if coords:
-                    x1, y1, x2, y2 = coords
-                    node1 = Node(x1, y1)
-                    node2 = Node(x2, y2)
-                    segment = self.grid_widget.beam.add_segment(BeamSegment(node1, node2))
-                    self.grid_widget.update()
+                self.grid_widget.beam.save_to_file(filename)
             except Exception as e:
-                QMessageBox.critical(self, "Ошибка!", str(e))
+                QMessageBox.critical(self, "Ошибка сохранения", str(e))
 
-    def open_support_dialog(self):
-        dialog = SupportDialog(self)
-        if dialog.exec():
-            try:
-                node_number, support_type, angle = dialog.get_data()
-                if node_number < 1: raise KeyError
-                ufx = support_type != Support.Type.ROLLER # Горизонтальной реакции нет у шарнирно-подвижной
-                ut = support_type == Support.Type.FIXED  # Момент есть только у жёсткой заделки
-                self.grid_widget.node_mapping[node_number].add_support(Support(angle, 0, 0, 0, ufx, True, ut))
-                self.grid_widget.update()
-            except KeyError:
-                QMessageBox.critical(self, "Ошибка!", str(NonExistentError(f"Узел {node_number} не существует!")))
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка!", str(e))
+    def load_beam(self):
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Загрузить балку",
+            "",
+            "Файлы балки (*.bm);;Все файлы (*)"
+        )
+        if not filename:
+            return  # Пользователь отменил выбор файла
 
-    def open_force_dialog(self):
-        dialog = ForceDialog(self)
-        if dialog.exec():
-            try:
-                segment_number, offset, value, angle, length = dialog.get_data()
-                if segment_number < 1: raise KeyError
-                force = Force(value, angle, offset, length, False)
-                self.grid_widget.segment_mapping[segment_number].add_force(force)
-                self.grid_widget.update()
-            except KeyError:
-                QMessageBox.critical(self, "Ошибка!", str(NonExistentError(f"Сегмент балки {segment_number} не существует!")))
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка!", str(e))
+        box = QMessageBox(self)
+        box.setWindowTitle("Подтверждение загрузки")
+        box.setText("Вы хотите загрузить другую балку? Текущая балка будет удалена.")
+        button_yes = box.addButton("Да", QMessageBox.ButtonRole.YesRole)
+        button_no = box.addButton("Нет", QMessageBox.ButtonRole.NoRole)
+        box.exec()
 
-    def open_torque_dialog(self):
-        dialog = TorqueDialog(self)
-        if dialog.exec():
-            try:
-                segment_number, offset, value = dialog.get_data()
-                if segment_number < 1: raise KeyError
-                torque = Torque(value, offset, False)
-                self.grid_widget.segment_mapping[segment_number].add_torque(torque)
-                self.grid_widget.update()
-            except KeyError:
-                QMessageBox.critical(self, "Ошибка!", str(NonExistentError(f"Сегмент балки {segment_number} не существует!")))
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка!", str(e))
+        if box.clickedButton() != button_yes:
+            return  # Пользователь отказался
 
-    def open_solve_dialog(self):
-        solve = {}
         try:
-            solve = self.grid_widget.beam.solve()
+            self.clear_field()
+            self.grid_widget.beam = Beam.load_from_file(filename)
+            self.grid_widget.update()
         except Exception as e:
-            QMessageBox.critical(self, "Ошибка!", str(e))
-            return
-        dialog = SolveDialog(solve, self)
-        if dialog.exec():
-            try:
-                pass
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка!", str(e))
+            QMessageBox.critical(self, "Ошибка загрузки", str(e))
+
+    def clear_button_message(self):
+        box = QMessageBox(self)
+        box.setWindowTitle("Подтверждение очистки")
+        box.setText("Вы уверены, что хотите очистить поле?")
+        button_yes = box.addButton("Да", QMessageBox.ButtonRole.YesRole)
+        button_no = box.addButton("Нет", QMessageBox.ButtonRole.NoRole)
+        box.exec()
+
+        if box.clickedButton() == button_yes:
+            self.clear_field()
+
+    def clear_field(self):
+        for cls in [Force, Torque, Support, Node, BeamSegment, Beam]:
+            cls._next_id = 1
+            cls._used_ids.clear()
+
+        self.grid_widget.beam = Beam()
+        self.grid_widget.update()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
