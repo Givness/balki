@@ -221,8 +221,25 @@ class Beam(IDNumerator):
             raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
 
         solution = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
-        answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
-        return answer
+        raw_answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
+
+        readable_answer = {}
+
+        for key, value in raw_answer.items():
+            if key.startswith('node_') and '_y' in key:
+                node_id = key.split('_')[1]
+                readable_answer[f"Вертикальная реакция опоры в точке {node_id}"] = value
+            elif key.startswith('node_') and '_x' in key:
+                node_id = key.split('_')[1]
+                readable_answer[f"Горизонтальная реакция опоры в точке {node_id}"] = value
+            elif key.startswith('node_') and '_torque' in key:
+                node_id = key.split('_')[1]
+                readable_answer[f"Момент реакции опоры в точке {node_id}"] = value
+            else:
+                # Силы или моменты на балке
+                readable_answer[key] = value
+
+        return readable_answer
 
     def __repr__(self):
         return f"Beam(segments={self.get_segments()})"

@@ -537,15 +537,13 @@ class SolveDialog(QDialog):
         labels = ["Ответ:" for _ in answers]
         layout = QVBoxLayout()
 
-        for label, input_field in zip(labels, self.inputs):
+        for answer, input in zip(answers.items(), self.inputs):
             row = QHBoxLayout()
-            row.addWidget(QLabel(label))
-            row.addWidget(input_field)
-            layout.addLayout(row)
-
-        for input, answer in zip(self.inputs, answers.values()):
+            row.addWidget(QLabel(f"{answer[0]}:"))
+            row.addWidget(input)
             input.setReadOnly(True)
-            input.setText(str(answer))
+            input.setText(str(answer[1]))
+            layout.addLayout(row)
 
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.accept)
