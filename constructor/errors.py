@@ -47,3 +47,8 @@ class DotBeamError(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
+
+class HighDistanceError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)

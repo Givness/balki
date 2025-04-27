@@ -121,9 +121,13 @@ class BeamSegment(IDNumerator):
         self.torques: list[Torque] = []
 
     def add_force(self, force: Force):
+        if force.node1_dist > self.length:
+            raise HighDistanceError("Отступ не может быть больше длины сегмента!")
         self.forces.append(force)
 
     def add_torque(self, torque: Torque):
+        if torque.node1_dist > self.length:
+            raise HighDistanceError("Отступ не может быть больше длины сегмента!")
         self.torques.append(torque)
 
     @property
