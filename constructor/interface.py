@@ -661,7 +661,13 @@ class MainWindow(QWidget):
                 QMessageBox.critical(self, "Ошибка!", str(e))
 
     def open_solve_dialog(self):
-        dialog = SolveDialog(self.grid_widget.beam.solve(), self)
+        solve = {}
+        try:
+            solve = self.grid_widget.beam.solve()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка!", str(e))
+            return
+        dialog = SolveDialog(solve, self)
         if dialog.exec():
             try:
                 pass

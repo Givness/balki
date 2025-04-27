@@ -32,3 +32,13 @@ class NonExistentError(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
+
+class NoBeamError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+
+class NoSupportsError(Exception):
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)

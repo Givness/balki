@@ -165,6 +165,12 @@ class Beam(IDNumerator):
         return list(self.graph.nodes)
 
     def solve(self):
+        if len(self.graph.nodes) == 0:
+            raise NoBeamError("Нет балки!")
+        
+        if all(node.support is None for node in self.get_nodes()):
+            raise NoSupportsError("Вы не добавили опор!")
+
         if not nx.is_connected(self.graph):
             raise DividedBeamError("Балка состоит из несвязанных сегментов!")
 
