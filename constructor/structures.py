@@ -152,6 +152,9 @@ class Beam(IDNumerator):
         node1 = self.add_node(segment.node1)
         node2 = self.add_node(segment.node2)
 
+        if node1.x == node2.x and node1.y == node2.y:
+            raise DotBeamError("Балка не может начинаться и заканчиваться в одной точке!")
+
         if self.graph.has_edge(node1, node2):
             return self.graph[node1][node2]['object']
 

@@ -609,13 +609,16 @@ class MainWindow(QWidget):
     def open_segment_dialog(self):
         dialog = BeamSegmentDialog(self)
         if dialog.exec():
-            coords = dialog.get_data()
-            if coords:
-                x1, y1, x2, y2 = coords
-                node1 = Node(x1, y1)
-                node2 = Node(x2, y2)
-                segment = self.grid_widget.beam.add_segment(BeamSegment(node1, node2))
-                self.grid_widget.update()
+            try:
+                coords = dialog.get_data()
+                if coords:
+                    x1, y1, x2, y2 = coords
+                    node1 = Node(x1, y1)
+                    node2 = Node(x2, y2)
+                    segment = self.grid_widget.beam.add_segment(BeamSegment(node1, node2))
+                    self.grid_widget.update()
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка!", str(e))
 
     def open_support_dialog(self):
         dialog = SupportDialog(self)
@@ -678,6 +681,6 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.resize(800, 600)
-    window.setWindowTitle("Координатная плоскость")
+    window.setWindowTitle("Определение реакций опор")
     window.show()
     sys.exit(app.exec())
