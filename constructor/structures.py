@@ -1,28 +1,25 @@
 from ids import IDNumerator
 from enum import Enum
-import numpy as np
 import sympy as sp
 import networkx as nx
 from errors import *
+import json
+import math
 
 class Force(IDNumerator):
-    def __init__(self, value: np.float64, angle: np.float64, node1_dist: np.float64, length: np.float64 = 1, unknown: bool = False):
-        super().__init__()
+    def __init__(self, value: float, angle: float, node1_dist: float, length: float = 1, unknown: bool = False, custom_id: int | None = None):
+        super().__init__(custom_id)
 
-        if np.isnan(value): raise NotANumberError("Значение силы должно быть числом!")
         if value < 0: raise NegativeOrZeroValueError("Значение силы не может быть отрицательным!")
-        self.value: np.float64 = value
+        self.value: float = value
 
-        if np.isnan(angle): raise NotANumberError("Значение угла должно быть числом!")
-        self.angle: np.float64 = angle % 360
+        self.angle: float = angle % 360
 
-        if np.isnan(node1_dist): raise NotANumberError("Значение расстояния от конца балки должно быть числом!")
         if node1_dist < 0: raise NegativeOrZeroValueError("Расстояние от края не может быть отрицательным!")
-        self.node1_dist: np.float64 = node1_dist
+        self.node1_dist: float = node1_dist
 
-        if np.isnan(length): raise NotANumberError("Значение длины действия силы должно быть числом!")
         if length <= 0: raise NegativeOrZeroValueError("Длина действия силы должна быть положительной!")
-        self.length: np.float64 = length
+        self.length: float = length
 
         self.unknown: bool = unknown
 
@@ -33,7 +30,7 @@ class Force(IDNumerator):
         elif self.angle in (90, 270):
             return 0
         else:
-            return np.cos(np.deg2rad(self.angle)) * self.value * self.length
+            return math.cos(math.radians(self.angle)) * self.value * self.length
 
     @property
     def part_y(self):
@@ -44,7 +41,7 @@ class Force(IDNumerator):
         elif self.angle == 270:
             return -self.value * self.length
         else:
-            return np.sin(np.deg2rad(self.angle)) * self.value * self.length
+            return math.sin(math.radians(self.angle)) * self.value * self.length
 
     def __repr__(self):
         return f"Force(value={self.value}, angle={self.angle}, node1_dist={self.node1_dist}, length={self.length}, unknown={self.unknown})"
@@ -61,15 +58,13 @@ class Force(IDNumerator):
         else: return Force.Type.OTHER
 
 class Torque(IDNumerator):
-    def __init__(self, value: np.float64, node1_dist: np.float64, unknown: bool = False):
-        super().__init__()
+    def __init__(self, value: float, node1_dist: float, unknown: bool = False, custom_id: int | None = None):
+        super().__init__(custom_id)
 
-        if np.isnan(value): raise NotANumberError("Значение момента должно быть числом!")
-        self.value: np.float64 = value
+        self.value: float = value
 
-        if np.isnan(node1_dist): raise NotANumberError("Значение расстояния должно быть числом!")
         if node1_dist < 0: raise NegativeOrZeroValueError("Расстояние не может быть отрицательным!")
-        self.node1_dist: np.float64 = node1_dist
+        self.node1_dist: float = node1_dist
 
         self.unknown: bool = unknown
 
@@ -77,9 +72,8 @@ class Torque(IDNumerator):
         return f"Torque(value={self.value}, node1_dist={self.node1_dist}, unknown={self.unknown})"
 
 class Support(IDNumerator):
-    def __init__(self, angle: np.float64, force_x: float, force_y: float, torque: float, unknown_fx: bool, unknown_fy: bool, unknown_t: bool):
-        super().__init__()
-        if np.isnan(angle): raise NotANumberError("Значение угла должно быть числом!")
+    def __init__(self, angle: float, force_x: float, force_y: float, torque: float, unknown_fx: bool, unknown_fy: bool, unknown_t: bool, custom_id: int | None = None):
+        super().__init__(custom_id)
         self.angle: float = angle % 360
         self.horizontal_force: Force = Force(force_x, angle, 0, 1, unknown_fx)
         self.vertical_force: Force = Force(force_y, angle + 90, 0, 1, unknown_fy)
@@ -102,7 +96,6 @@ class Support(IDNumerator):
 class Node(IDNumerator):
     def __init__(self, x: float, y: float, custom_id: int | None = None):
         super().__init__(custom_id)
-        if np.isnan(x) or np.isnan(y): raise NotANumberError("Координаты должны быть числами!")
         self.x: float = x
         self.y: float = y
         self.support: Support = None
@@ -120,8 +113,8 @@ class Node(IDNumerator):
         return isinstance(other, Node) and self.id == other.id
 
 class BeamSegment(IDNumerator):
-    def __init__(self, node1: Node, node2: Node):
-        super().__init__()
+    def __init__(self, node1: Node, node2: Node, custom_id: int | None = None):
+        super().__init__(custom_id)
         self.node1: Node = node1
         self.node2: Node = node2
         self.forces: list[Force] = []
@@ -135,18 +128,17 @@ class BeamSegment(IDNumerator):
 
     @property
     def length(self):
-        return np.hypot(self.node1.x - self.node2.x, self.node1.y - self.node2.y)
+        return math.hypot(self.node1.x - self.node2.x, self.node1.y - self.node2.y)
 
     def __repr__(self):
         return f"BeamSegment(from={self.node1}, to={self.node2}, forces={self.forces}, torques={self.torques})"
 
 class Beam(IDNumerator):
-    def __init__(self, segments: list[BeamSegment] = []):
-        super().__init__()
+    def __init__(self, segments: list[BeamSegment] = [], custom_id: int | None = None):
+        super().__init__(custom_id)
         self.graph = nx.Graph()
         for s in segments:
             self.add_segment(s)
-        self.base_node = Node(0, 0, 0)
 
     def add_node(self, node: Node):
         for existing_node in self.graph.nodes:
@@ -182,13 +174,13 @@ class Beam(IDNumerator):
             if force.get_type != Force.Type.VERTICAL:
                 part = force.part_x
                 fx_dict[f'{name}_x'] = '?' if force.unknown else part
-                dy = y - self.base_node.y
+                dy = y
                 t_dict[f'{name}_x_torque'] = 0 if dy == 0 else f'{dy}*{name}_x' if force.unknown else part * dy
 
             if force.get_type != Force.Type.HORIZONTAL:
                 part = force.part_y
                 fy_dict[f'{name}_y'] = '?' if force.unknown else part
-                dx = x - self.base_node.x
+                dx = x
                 t_dict[f'{name}_y_torque'] = 0 if dx == 0 else f'{dx}*{name}_y' if force.unknown else part * dx
 
         for node in self.get_nodes():
@@ -234,3 +226,129 @@ class Beam(IDNumerator):
 
     def __repr__(self):
         return f"Beam(segments={self.get_segments()})"
+    
+    def to_dict(self):
+        return {
+            'nodes': [
+                {
+                    'id': node.id,
+                    'x': node.x,
+                    'y': node.y,
+                    'support': {
+                        'id': node.support.id,
+                        'angle': node.support.angle,
+                        'horizontal_force': {
+                            'id': node.support.horizontal_force.id,
+                            'value': node.support.horizontal_force.value,
+                            'angle': node.support.horizontal_force.angle,
+                            'node1_dist': node.support.horizontal_force.node1_dist,
+                            'length': node.support.horizontal_force.length,
+                            'unknown': node.support.horizontal_force.unknown
+                        },
+                        'vertical_force': {
+                            'id': node.support.vertical_force.id,
+                            'value': node.support.vertical_force.value,
+                            'angle': node.support.vertical_force.angle,
+                            'node1_dist': node.support.vertical_force.node1_dist,
+                            'length': node.support.vertical_force.length,
+                            'unknown': node.support.vertical_force.unknown
+                        },
+                        'torque': {
+                            'id': node.support.torque.id,
+                            'value': node.support.torque.value,
+                            'node1_dist': node.support.torque.node1_dist,
+                            'unknown': node.support.torque.unknown
+                        }
+                    } if node.support else None
+                }
+                for node in self.get_nodes()
+            ],
+            'segments': [
+                {
+                    'id': segment.id,
+                    'node1_id': segment.node1.id,
+                    'node2_id': segment.node2.id,
+                    'forces': [
+                        {
+                            'id': force.id,
+                            'value': force.value,
+                            'angle': force.angle,
+                            'node1_dist': force.node1_dist,
+                            'length': force.length,
+                            'unknown': force.unknown
+                        } for force in segment.forces
+                    ],
+                    'torques': [
+                        {
+                            'id': torque.id,
+                            'value': torque.value,
+                            'node1_dist': torque.node1_dist,
+                            'unknown': torque.unknown
+                        } for torque in segment.torques
+                    ]
+                }
+                for segment in self.get_segments()
+            ]
+        }
+
+    def save_to_file(self, filename: str = "beam.bm"):
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=4)
+
+    @classmethod
+    def load_from_file(cls, filename: str = "beam.bm"):
+        with open(filename, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        id_node_map = {}
+        beam = cls()
+
+        for node_data in data['nodes']:
+            node = Node(node_data['x'], node_data['y'], custom_id=node_data['id'])
+            if node_data['support']:
+                support_data = node_data['support']
+                support = Support(
+                    support_data['angle'],
+                    support_data['horizontal_force']['value'],
+                    support_data['vertical_force']['value'],
+                    support_data['torque']['value'],
+                    support_data['horizontal_force']['unknown'],
+                    support_data['vertical_force']['unknown'],
+                    support_data['torque']['unknown'],
+                    custom_id=support_data['id']
+                )
+                # Принудительно выставляем ID внутренним объектам:
+                support.horizontal_force.id = support_data['horizontal_force']['id']
+                support.vertical_force.id = support_data['vertical_force']['id']
+                support.torque.id = support_data['torque']['id']
+                node.add_support(support)
+            id_node_map[node.id] = beam.add_node(node)
+
+        for segment_data in data['segments']:
+            node1 = id_node_map[segment_data['node1_id']]
+            node2 = id_node_map[segment_data['node2_id']]
+            segment = BeamSegment(node1, node2, custom_id=segment_data['id'])
+
+            for force_data in segment_data['forces']:
+                force = Force(
+                    force_data['value'],
+                    force_data['angle'],
+                    force_data['node1_dist'],
+                    force_data['length'],
+                    force_data['unknown'],
+                    custom_id=force_data['id']
+                )
+                segment.add_force(force)
+
+            for torque_data in segment_data['torques']:
+                torque = Torque(
+                    torque_data['value'],
+                    torque_data['node1_dist'],
+                    torque_data['unknown'],
+                    custom_id=torque_data['id']
+                )
+                segment.add_torque(torque)
+
+            beam.add_segment(segment)
+
+        return beam

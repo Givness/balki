@@ -19,4 +19,5 @@ segments[0].add_torque(Torque(20000, 0, False))
 segments[0].add_force(Force(30000, 270, 4, 1, False))
 
 beam = Beam(segments)
+beam.save_to_file()
 print(beam.solve())

@@ -1,5 +1,4 @@
 from abc import ABCMeta, ABC
-from numpy import int32
 
 
 class _IDMeta(ABCMeta):
@@ -15,22 +14,22 @@ class IDNumerator(ABC, metaclass=_IDMeta):
         if custom_id is not None:
             if custom_id in cls._used_ids:
                 raise ValueError(f"ID {custom_id} уже занят в {cls.__name__}")
-            self._id = int32(custom_id)
+            self._id = int(custom_id)
         else:
             while cls._next_id in cls._used_ids:
                 cls._next_id += 1
-            self._id = int32(cls._next_id)
+            self._id = int(cls._next_id)
             cls._next_id += 1
         cls._used_ids.add(self._id)
 
     @property
-    def id(self) -> int32:
+    def id(self) -> int:
         return self._id
 
     @id.setter
     def id(self, new_id: int):
         cls = self.__class__
-        new_id = int32(new_id)
+        new_id = int(new_id)
         if new_id == self._id:
             return  # ничего не меняем
         if new_id in cls._used_ids:

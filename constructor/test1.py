@@ -7,9 +7,9 @@ beam = Beam()
 
 # Массив узлов
 nodes = [
-    beam.add_node(Node(-17, 0)),
-    beam.add_node(Node(-11, 0)),
-    beam.add_node(Node(-1, 0))
+    beam.add_node(Node(-17, 1)),
+    beam.add_node(Node(-11, 1)),
+    beam.add_node(Node(-1, 1))
 ]
 
 # Добавляем опоры
@@ -26,6 +26,8 @@ segments = [
 segments[0].add_force(Force(10, 215, 0, 1, False))
 segments[1].add_torque(Torque(8, 0, False))
 segments[1].add_force(Force(4, 270, 2.5, 5, False))
+
+beam.save_to_file()
 
 # Решаем систему
 print(beam.solve())
