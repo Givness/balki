@@ -187,7 +187,7 @@ class GridWidget(QWidget):
 
                 painter.save()
                 painter.translate(x, y)
-                painter.rotate(force.angle)
+                painter.rotate(-force.angle)
                 painter.drawPixmap(-size_x, -size_y // 2, size_x, size_y, QPixmap("arrow.svg"))
                 painter.restore()
 
@@ -195,12 +195,42 @@ class GridWidget(QWidget):
             
                 metrics = painter.fontMetrics()
                 text_rect = metrics.tightBoundingRect(text)
-                text_x = int(x)
-                text_y = int(y)
+                text_x = int(x - size_x * math.cos(math.radians(force.angle)))
+                text_y = int(y + size_x * math.sin(math.radians(force.angle)))
                 text_rect.moveTopLeft(QPoint(text_x, text_y))
                 text_rect.adjust(-1, -1, 1, 1)
 
-                painter.setBrush(Qt.GlobalColor.red)
+                painter.setBrush(Qt.GlobalColor.white)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawRect(text_rect)
+                    
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setPen(Qt.GlobalColor.black)
+                painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
+
+            # Моменты
+            for torque in segment.torques:
+                x = x1 + torque.node1_dist * (x2 - x1) / segment.length
+                y = y1 + torque.node1_dist * (y2 - y1) / segment.length
+
+                size = int(2 * self.scale)
+                size = 35 if size > 35 else size
+
+                painter.save()
+                painter.translate(x, y)
+                painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("circlearrow.svg"))
+                painter.restore()
+
+                text = f'{torque.value} Нм'
+            
+                metrics = painter.fontMetrics()
+                text_rect = metrics.tightBoundingRect(text)
+                text_x = int(x + size // 2)
+                text_y = int(y - size // 2)
+                text_rect.moveTopLeft(QPoint(text_x, text_y))
+                text_rect.adjust(-1, -1, 1, 1)
+
+                painter.setBrush(Qt.GlobalColor.white)
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.drawRect(text_rect)
                     
@@ -455,6 +485,72 @@ class ForceDialog(QDialog):
             return None
 
 
+class TorqueDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Добавить момент")
+
+        self.inputs = [QLineEdit(), QLineEdit(), QLineEdit()]
+        labels = ["Номер балки:", "Отступ:", "Значение:"]
+        layout = QVBoxLayout()
+
+        for label, input_field in zip(labels, self.inputs):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(label))
+            row.addWidget(input_field)
+            layout.addLayout(row)
+
+        button_ok = QPushButton("ОК")
+        button_ok.clicked.connect(self.validate_and_accept)
+        layout.addWidget(button_ok)
+
+        self.setLayout(layout)
+
+    def validate_and_accept(self):
+        try:
+            Torque(float(self.inputs[2].text()), float(self.inputs[1].text()), False)
+            int(self.inputs[0].text())
+            self.accept()
+        except (NotANumberError, NegativeOrZeroValueError) as e:
+            QMessageBox.critical(self, "Ошибка!", str(e))
+        except Exception:
+            QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
+
+    def get_data(self):
+        try:
+            return int(self.inputs[0].text()), \
+            float(self.inputs[1].text()), \
+            float(self.inputs[2].text())
+        except Exception:
+            return None
+
+
+class SolveDialog(QDialog):
+    def __init__(self, answers: dict[str: float], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Добавить момент")
+
+        self.inputs = [QLineEdit() for _ in answers]
+        labels = ["Ответ:" for _ in answers]
+        layout = QVBoxLayout()
+
+        for label, input_field in zip(labels, self.inputs):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(label))
+            row.addWidget(input_field)
+            layout.addLayout(row)
+
+        for input, answer in zip(self.inputs, answers.values()):
+            input.setReadOnly(True)
+            input.setText(str(answer))
+
+        button_ok = QPushButton("ОК")
+        button_ok.clicked.connect(self.accept)
+        layout.addWidget(button_ok)
+
+        self.setLayout(layout)
+
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -477,9 +573,29 @@ class MainWindow(QWidget):
         add_force_button.clicked.connect(self.open_force_dialog)
         left_layout.addWidget(add_force_button)
 
+        add_torque_button = QPushButton("Добавить момент")
+        add_torque_button.clicked.connect(self.open_torque_dialog)
+        left_layout.addWidget(add_torque_button)
+
+        solve_button = QPushButton("Посчитать")
+        solve_button.clicked.connect(self.open_solve_dialog)
+        left_layout.addWidget(solve_button)
+
         reset_offset_button = QPushButton("Вернуться к началу координат")
         reset_offset_button.clicked.connect(self.grid_widget.resetOffset)
         left_layout.addWidget(reset_offset_button)
+
+        save_button = QPushButton("Сохранить балку")
+        save_button.clicked.connect(lambda: self.grid_widget.beam.save_to_file("beam.bm"))
+        left_layout.addWidget(save_button)
+
+        def load_beam():
+            self.grid_widget.beam = Beam.load_from_file()
+            self.grid_widget.update()
+
+        load_button = QPushButton("Загрузить балку")
+        load_button.clicked.connect(load_beam)
+        left_layout.addWidget(load_button)
 
         left_widget = QWidget()
         left_widget.setLayout(left_layout)
@@ -526,6 +642,28 @@ class MainWindow(QWidget):
                 self.grid_widget.update()
             except KeyError:
                 QMessageBox.critical(self, "Ошибка!", str(NonExistentError(f"Сегмент балки {segment_number} не существует!")))
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка!", str(e))
+
+    def open_torque_dialog(self):
+        dialog = TorqueDialog(self)
+        if dialog.exec():
+            try:
+                segment_number, offset, value = dialog.get_data()
+                if segment_number < 1: raise KeyError
+                torque = Torque(value, offset, False)
+                self.grid_widget.segment_mapping[segment_number].add_torque(torque)
+                self.grid_widget.update()
+            except KeyError:
+                QMessageBox.critical(self, "Ошибка!", str(NonExistentError(f"Сегмент балки {segment_number} не существует!")))
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка!", str(e))
+
+    def open_solve_dialog(self):
+        dialog = SolveDialog(self.grid_widget.beam.solve(), self)
+        if dialog.exec():
+            try:
+                pass
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка!", str(e))
 
