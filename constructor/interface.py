@@ -4,6 +4,11 @@ from PyQt6.QtCore import *
 from structures import *
 import sys
 
+def smart_str(value) -> str:
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
 
 class GridWidget(QWidget):
     def __init__(self):
@@ -375,7 +380,7 @@ class BeamSegmentDialog(QDialog):
 
         if default_values:
             for field, value in zip(self.inputs, default_values):
-                field.setText(str(value))
+                field.setText(smart_str(value))
 
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.validate_and_accept)
@@ -414,9 +419,9 @@ class SupportDialog(QDialog):
             layout.addLayout(row)
 
         if default_values:
-            self.inputs[0].setText(str(default_values[0]))
+            self.inputs[0].setText(smart_str(default_values[0]))
             self.inputs[1].setCurrentIndex(default_values[1])
-            self.inputs[2].setText(str(default_values[2]))
+            self.inputs[2].setText(smart_str(default_values[2]))
 
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.validate_and_accept)
@@ -458,13 +463,13 @@ class ForceDialog(QDialog):
         self.toggle_length_field()
 
         if default_values:
-            self.inputs[0].setText(str(default_values[0]))
-            self.inputs[1].setText(str(default_values[1]))
-            self.inputs[2].setText(str(default_values[2]))
-            self.inputs[3].setText(str(default_values[3]))
+            self.inputs[0].setText(smart_str(default_values[0]))
+            self.inputs[1].setText(smart_str(default_values[1]))
+            self.inputs[2].setText(smart_str(default_values[2]))
+            self.inputs[3].setText(smart_str(default_values[3]))
             if default_values[4] != 1:
                 self.inputs[4].setChecked(True)
-                self.inputs[5].setText(str(default_values[4]))
+                self.inputs[5].setText(smart_str(default_values[4]))
             else:
                 self.inputs[4].setChecked(False)
 
@@ -515,7 +520,7 @@ class TorqueDialog(QDialog):
 
         if default_values:
             for field, value in zip(self.inputs, default_values):
-                field.setText(str(value))
+                field.setText(smart_str(value))
 
         button_ok = QPushButton("ОК")
         button_ok.clicked.connect(self.validate_and_accept)
@@ -562,13 +567,6 @@ class SolveDialog(QDialog):
 
         self.setLayout(layout)
 
-
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import Qt
-from errors import IncorrectInputError, NonExistentError, NegativeOrZeroValueError, NotANumberError
-from structures import Force, Torque, Support, BeamSegment, Node, Beam
-
-# Диалоги (BeamSegmentDialog, SupportDialog, ForceDialog, TorqueDialog) - определены выше
 
 class DialogManager:
     def __init__(self, grid_widget):
@@ -744,6 +742,17 @@ class MainWindow(QWidget):
                 QMessageBox.critical(self, "Ошибка сохранения", str(e))
 
     def load_beam(self):
+        if len(self.grid_widget.beam.graph.nodes) > 0:
+            box = QMessageBox(self)
+            box.setWindowTitle("Подтверждение загрузки")
+            box.setText("Вы хотите загрузить другую балку? Текущая балка будет удалена.")
+            button_yes = box.addButton("Да", QMessageBox.ButtonRole.YesRole)
+            button_no = box.addButton("Нет", QMessageBox.ButtonRole.NoRole)
+            box.exec()
+
+            if box.clickedButton() != button_yes:
+                return  # Пользователь отказался
+
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Загрузить балку",
@@ -752,16 +761,6 @@ class MainWindow(QWidget):
         )
         if not filename:
             return  # Пользователь отменил выбор файла
-
-        box = QMessageBox(self)
-        box.setWindowTitle("Подтверждение загрузки")
-        box.setText("Вы хотите загрузить другую балку? Текущая балка будет удалена.")
-        button_yes = box.addButton("Да", QMessageBox.ButtonRole.YesRole)
-        button_no = box.addButton("Нет", QMessageBox.ButtonRole.NoRole)
-        box.exec()
-
-        if box.clickedButton() != button_yes:
-            return  # Пользователь отказался
 
         try:
             self.clear_field()
