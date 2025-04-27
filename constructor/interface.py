@@ -193,7 +193,7 @@ class GridWidget(QWidget):
                 painter.save()
                 painter.translate(x, y)
                 painter.rotate(-force.angle)
-                painter.drawPixmap(-size_x, -size_y // 2, size_x, size_y, QPixmap("arrow.svg"))
+                painter.drawPixmap(-size_x, -size_y // 2, size_x, size_y, QPixmap("images\\arrow.svg"))
                 painter.restore()
 
                 text = f'{force.value} Н'
@@ -224,9 +224,9 @@ class GridWidget(QWidget):
                 painter.save()
                 painter.translate(x, y)
                 if torque.value < 0:
-                    painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("circlearrow.svg").transformed(QTransform().scale(-1, 1)))
+                    painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("images\\circlearrow.svg").transformed(QTransform().scale(-1, 1)))
                 else:
-                    painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("circlearrow.svg"))
+                    painter.drawPixmap(-size // 2, -size // 2, size, size, QPixmap("images\\circlearrow.svg"))
                 painter.restore()
 
                 text = f'{torque.value} Нм'
@@ -285,9 +285,9 @@ class GridWidget(QWidget):
                                 
                 image = None
                 match node.support.get_type:
-                    case Support.Type.FIXED: image = QPixmap("support0.svg")
-                    case Support.Type.PINNED: image = QPixmap("support1.svg")
-                    case Support.Type.ROLLER: image = QPixmap("support2.svg")
+                    case Support.Type.FIXED: image = QPixmap("images\\support0.svg")
+                    case Support.Type.PINNED: image = QPixmap("images\\support1.svg")
+                    case Support.Type.ROLLER: image = QPixmap("images\\support2.svg")
                 painter.drawPixmap(-size // 2, -size // 2 + 12, size, size, image)
                 painter.restore()
 
