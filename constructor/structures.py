@@ -171,6 +171,41 @@ class Beam(IDNumerator):
     def get_nodes(self):
         return list(self.graph.nodes)
 
+    def reassign_ids(self):
+        for cls in [Node, BeamSegment, Force, Torque, Support]:
+            cls._next_id = 1
+            cls._used_ids.clear()
+
+        for idx, node in enumerate(self.get_nodes(), start=1):
+            node.id = idx
+            if node.support:
+                node.support.id = Support._next_id
+                Support._used_ids.add(Support._next_id)
+                Support._next_id += 1
+
+                node.support.horizontal_force.id = Force._next_id
+                Force._used_ids.add(Force._next_id)
+                Force._next_id += 1
+
+                node.support.vertical_force.id = Force._next_id
+                Force._used_ids.add(Force._next_id)
+                Force._next_id += 1
+
+                node.support.torque.id = Torque._next_id
+                Torque._used_ids.add(Torque._next_id)
+                Torque._next_id += 1
+
+        for idx, segment in enumerate(self.get_segments(), start=1):
+            segment.id = idx
+            for force in segment.forces:
+                force.id = Force._next_id
+                Force._used_ids.add(Force._next_id)
+                Force._next_id += 1
+            for torque in segment.torques:
+                torque.id = Torque._next_id
+                Torque._used_ids.add(Torque._next_id)
+                Torque._next_id += 1
+
     def solve(self):
         if len(self.graph.nodes) == 0:
             raise NoBeamError("Нет балки!")
@@ -180,6 +215,8 @@ class Beam(IDNumerator):
 
         if not nx.is_connected(self.graph):
             raise DividedBeamError("Балка состоит из несвязанных сегментов!")
+
+        self.reassign_ids()
 
         fx_dict, fy_dict, t_dict = {}, {}, {}
 
