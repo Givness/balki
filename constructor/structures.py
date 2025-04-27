@@ -1,10 +1,11 @@
-from ids import IDNumerator
-from enum import Enum
-import sympy as sp
-import networkx as nx
-from errors import *
 import json
 import math
+from enum import Enum
+import networkx as nx
+import sympy as sp
+from errors import *
+from ids import IDNumerator
+
 
 class Force(IDNumerator):
     def __init__(self, value: float, angle: float, node1_dist: float, length: float = 1, unknown: bool = False, custom_id: int | None = None):
