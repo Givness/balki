@@ -1,54 +1,36 @@
-class UnsolvableError(Exception):
+class BaseError(Exception):
     def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+        super().__init__(message)
 
-class TooManyUnknownsError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class UnsolvableError(BaseError):
+    pass
 
-class NegativeOrZeroValueError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class TooManyUnknownsError(BaseError):
+    pass
 
-class NotANumberError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class NegativeOrZeroValueError(BaseError):
+    pass
 
-class DividedBeamError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class NotANumberError(BaseError):
+    pass
 
-class IncorrectInputError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class DividedBeamError(BaseError):
+    pass
 
-class NonExistentError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class IncorrectInputError(BaseError):
+    pass
 
-class NoBeamError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class NonExistentError(BaseError):
+    pass
 
-class NoSupportsError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class NoBeamError(BaseError):
+    pass
 
-class DotBeamError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class NoSupportsError(BaseError):
+    pass
 
-class HighDistanceError(Exception):
-    def __init__(self, message):
-        self.message = message
-        super().__init__(self.message)
+class DotBeamError(BaseError):
+    pass
+
+class HighDistanceError(BaseError):
+    pass

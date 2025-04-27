@@ -1,10 +1,9 @@
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QFileDialog, QMessageBox, QApplication
+    QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QFileDialog, QMessageBox
 )
 from structures import *
 from grid import GridWidget
 from dialogs import DialogManager
-import sys
 
 
 class MainWindow(QWidget):
@@ -122,12 +121,3 @@ class MainWindow(QWidget):
 
         self.grid_widget.beam = Beam()
         self.grid_widget.update()
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.resize(800, 600)
-    window.setWindowTitle("Определение реакций опор")
-    window.show()
-    sys.exit(app.exec())
