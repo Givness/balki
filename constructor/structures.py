@@ -217,7 +217,7 @@ class Beam(IDNumerator):
         if not nx.is_connected(self.graph):
             raise DividedBeamError("Балка состоит из несвязанных сегментов!")
 
-        self.reassign_ids()
+        #self.reassign_ids()
 
         fx_dict, fy_dict, t_dict = {}, {}, {}
 
@@ -272,6 +272,10 @@ class Beam(IDNumerator):
             raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
 
         solution = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
+
+        if len(solution) < 1:
+            raise UnsolvableError("Невозможно найти решение либо система подвижна!")
+
         raw_answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
 
         readable_answer = {}
