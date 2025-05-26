@@ -35,7 +35,8 @@ class IDNumerator(ABC, metaclass=_IDMeta):
         if new_id in cls._used_ids:
             raise ValueError(f"ID {new_id} уже занят в {cls.__name__}")
         # Снимаем старый ID
-        cls._used_ids.remove(self._id)
+        if self._id in cls._used_ids:
+            cls._used_ids.remove(self._id)
         # Присваиваем новый
         self._id = new_id
         cls._used_ids.add(self._id)

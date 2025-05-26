@@ -217,7 +217,7 @@ class Beam(IDNumerator):
         if not nx.is_connected(self.graph):
             raise DividedBeamError("Балка состоит из несвязанных сегментов!")
 
-        #self.reassign_ids()
+        self.reassign_ids()
 
         fx_dict, fy_dict, t_dict = {}, {}, {}
 
