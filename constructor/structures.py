@@ -94,21 +94,29 @@ class Support(IDNumerator):
         elif self.horizontal_force.value != 0 or self.horizontal_force.unknown: return Support.Type.PINNED
         else: return Support.Type.ROLLER
 
+class Hinge(IDNumerator):
+    def __init__(self, custom_id: int | None = None):
+        super().__init__(custom_id)
+
 class Node(IDNumerator):
     def __init__(self, x: float, y: float, custom_id: int | None = None):
         super().__init__(custom_id)
         self.x: float = x
         self.y: float = y
         self.support: Support = None
+        self.hinge: Hinge = None
 
     def add_support(self, support: Support):
         self.support = support
+
+    def add_hinge(self):
+        self.hinge = Hinge()
 
     def __repr__(self):
         return f"Node(coords=({self.x}, {self.y}), support={self.support})"
 
     def __hash__(self):
-        return hash((self.x, self.y, self.id))  # уникальность через id
+        return hash((self.x, self.y, self.id))
 
     def __eq__(self, other):
         return isinstance(other, Node) and self.id == other.id
@@ -295,6 +303,46 @@ class Beam(IDNumerator):
                 readable_answer[key] = value
 
         return readable_answer
+
+    def split_beam_by_hinges(self) -> list["Beam"]:
+        visited = set()
+        subbeams = []
+
+        def dfs_collect_nodes(start):
+            stack = [start]
+            local_nodes = set()
+
+            while stack:
+                node = stack.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                local_nodes.add(node)
+
+                for neighbor in self.graph.neighbors(node):
+                    if neighbor in visited:
+                        continue
+                    if neighbor.hinge is not None:
+                        local_nodes.add(neighbor)
+                        continue
+                    stack.append(neighbor)
+
+            return local_nodes
+
+        for node in self.get_nodes():
+            if node in visited or node.hinge is not None:
+                continue
+
+            group_nodes = dfs_collect_nodes(node)
+            subgraph = self.graph.subgraph(group_nodes)
+
+            subbeam = Beam()
+            for u, v, data in subgraph.edges(data=True):
+                subbeam.add_segment(data['object'])
+
+            subbeams.append(subbeam)
+
+        return subbeams
 
     def __repr__(self):
         return f"Beam(segments={self.get_segments()})"
