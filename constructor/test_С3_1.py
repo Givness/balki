@@ -29,7 +29,7 @@ segments = [
 segments[0].add_torque(Torque(-20000, 0, False))
 segments[1].add_force(Force(15000, 270, 1, 1, False))
 segments[1].add_force(Force(2000, 270, 1, 2, False))
-segments[2].add_force(Force(10000, 180, 1.118, 1, False))
+segments[2].add_force(Force(10000, 180, math.sqrt(5)/2, 1, False))
 
 #beam.save_to_file("beam.bm")
 
