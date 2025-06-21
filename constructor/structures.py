@@ -313,7 +313,7 @@ class Beam(IDNumerator):
             if force.get_type != Force.Type.VERTICAL:
                 part = force.part_x
                 fx_dict[f'{name}_x'] = '?' if force.unknown else part
-                t_dict[f'{name}_x_torque'] = 0 if y == 0 else f'{y}*{name}_x' if force.unknown else part * y
+                t_dict[f'{name}_x_torque'] = 0 if y == 0 else f'{-y}*{name}_x' if force.unknown else part * -y
 
             if force.get_type != Force.Type.HORIZONTAL:
                 part = force.part_y
@@ -321,8 +321,8 @@ class Beam(IDNumerator):
                 t_dict[f'{name}_y_torque'] = 0 if x == 0 else f'{x}*{name}_y' if force.unknown else part * x
 
         for node in self.get_nodes():
-            nid = f'node_{node.id}'
             if node.support:
+                nid = f'node_{node.id}'
                 add_force_parts(f'{nid}_vertical', node.support.vertical_force, node.x, node.y)
                 add_force_parts(f'{nid}_horizontal', node.support.horizontal_force, node.x, node.y)
                 t_dict[f'{nid}_torque'] = '?' if node.support.torque.unknown else node.support.torque.value
@@ -353,12 +353,12 @@ class Beam(IDNumerator):
 
         for segment in self.get_segments():
             sid = f'segment_{segment.id}'
-            for i, force in enumerate(segment.forces):
+            for force in segment.forces:
                 x = segment.node1.x + force.node1_dist * (segment.node2.x - segment.node1.x) / segment.length
                 y = segment.node1.y + force.node1_dist * (segment.node2.y - segment.node1.y) / segment.length
-                add_force_parts(f'{sid}_force_{i}', force, x, y)
-            for i, torque in enumerate(segment.torques):
-                t_dict[f'{sid}_torque_{i}'] = '?' if torque.unknown else torque.value
+                add_force_parts(f'{sid}_force_{force.id}', force, x, y)
+            for torque in segment.torques:
+                t_dict[f'{sid}_torque_{torque.id}'] = '?' if torque.unknown else torque.value
 
         eqs = [
             sp.Eq(sp.simplify(' + '.join(fx_dict.keys())), 0),
