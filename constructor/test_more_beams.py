@@ -1,4 +1,4 @@
-#https://isopromat.ru/tehmeh/reshenie-zadach/opredelenie-reakcij-opor-balki-sila-pod-uglom
+#https://www.youtube.com/watch?v=HSRy3sd34P8
 
 from structures import *
 
@@ -7,29 +7,52 @@ beam = Beam()
 
 # Массив узлов
 nodes = [
-    beam.add_node(Node(-17, 1)),
-    beam.add_node(Node(-11, 1)),
-    beam.add_node(Node(-1, 1))
+    beam.add_node(Node(-1, 0)),
+    beam.add_node(Node(-1, 2)),
+    beam.add_node(Node(1, 2)),
+    beam.add_node(Node(2, 0)),
 ]
 
 # Добавляем опоры
 nodes[0].add_support(Support(0, 0, 0, 0, True, True, False))
-nodes[1].add_hinge()
-nodes[2].add_support(Support(0, 0, 0, 0, False, True, False))
+nodes[2].add_hinge()
+nodes[3].add_support(Support(0, 0, 0, 0, True, True, False))
 
 # Массив сегментов
 segments = [
     beam.add_segment(BeamSegment(nodes[0], nodes[1])),
-    beam.add_segment(BeamSegment(nodes[1], nodes[2]))
+    beam.add_segment(BeamSegment(nodes[1], nodes[2])),
+    beam.add_segment(BeamSegment(nodes[2], nodes[3]))
 ]
 
 # Добавляем нагрузки
-segments[0].add_force(Force(10, 215, 0, 1, False))
-segments[1].add_torque(Torque(8, 0, False))
-segments[1].add_force(Force(4, 270, 2.5, 5, False))
+segments[0].add_torque(Torque(-20000, 0, False))
+segments[1].add_force(Force(15000, 270, 1, 1, False))
+segments[1].add_force(Force(2000, 270, 1, 2, False))
+segments[2].add_force(Force(10000, 180, 1.118, 1, False))
 
 #beam.save_to_file("beam.bm")
 
-parts = beam.split_beam_by_hinges()
-for i in parts:
-    print(i)
+# parts = beam.split_beam_by_hinges()
+# for i in parts:
+#     print(i.pretty_print())
+
+#     eqs, secondary_eqs, unknowns, all_symbols = i.build_equations()
+
+#     print('---eqs---')
+#     for i in eqs:
+#         print(i)
+
+#     print('---secondary_eqs---')
+#     for i in secondary_eqs:
+#         print(i)
+
+#     print('---unknowns---')
+#     print(unknowns)
+
+#     print('---all_symbols---')
+#     print(all_symbols)
+
+#     print()
+
+print(beam.solve())

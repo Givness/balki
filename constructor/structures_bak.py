@@ -117,30 +117,6 @@ class Support(IDNumerator):
 class Hinge(IDNumerator):
     def __init__(self, custom_id: int | None = None):
         super().__init__(custom_id)
-        self.body1: "Beam" | None = None
-        self.body2: "Beam" | None = None
-
-    def assign_body(self, beam: "Beam"):
-        if self.body1 is None:
-            self.body1 = beam
-        elif self.body1 == beam:
-            return
-        elif self.body2 is None:
-            self.body2 = beam
-        elif self.body2 == beam:
-            return
-        else:
-            raise ValueError(f"Шарнир {self.id} соединяет более двух тел: {self.body1}, {self.body2}, {beam}")
-        
-    def pretty_print(self, indent=0):
-        pad = ' ' * indent
-        parts = []
-        if self.body1:
-            parts.append(f"body1=Beam#{self.body1.id}")
-        if self.body2:
-            parts.append(f"body2=Beam#{self.body2.id}")
-        joined = ', '.join(parts)
-        return f"{pad}Hinge#{self.id}" + (f": {joined}" if joined else "")
 
 class Node(IDNumerator):
     def __init__(self, x: float, y: float, custom_id: int | None = None):
@@ -171,7 +147,7 @@ class Node(IDNumerator):
         if self.support:
             lines.append(self.support.pretty_print(indent + 2))
         if self.hinge:
-            lines.append(self.hinge.pretty_print(indent + 2))
+            lines.append(f"{' ' * (indent + 2)}Hinge#{self.hinge.id}")
         return '\n'.join(lines)
 
 
@@ -306,19 +282,33 @@ class Beam(IDNumerator):
 
         return readable_answer
 
-    def build_equations(self):
+
+    def solve(self):
+        if len(self.graph.nodes) == 0:
+            raise NoBeamError("Нет балки!")
+        
+        if all(node.support is None for node in self.get_nodes()):
+            raise NoSupportsError("Вы не добавили опор!")
+
+        if not nx.is_connected(self.graph):
+            raise DividedBeamError("Балка состоит из несвязанных сегментов!")
+
+        self.reassign_ids()
+
         fx_dict, fy_dict, t_dict = {}, {}, {}
 
         def add_force_parts(name: str, force: Force, x: float, y: float):
             if force.get_type != Force.Type.VERTICAL:
                 part = force.part_x
                 fx_dict[f'{name}_x'] = '?' if force.unknown else part
-                t_dict[f'{name}_x_torque'] = 0 if y == 0 else f'{y}*{name}_x' if force.unknown else part * y
+                dy = y
+                t_dict[f'{name}_x_torque'] = 0 if dy == 0 else f'{dy}*{name}_x' if force.unknown else part * dy
 
             if force.get_type != Force.Type.HORIZONTAL:
                 part = force.part_y
                 fy_dict[f'{name}_y'] = '?' if force.unknown else part
-                t_dict[f'{name}_y_torque'] = 0 if x == 0 else f'{x}*{name}_y' if force.unknown else part * x
+                dx = x
+                t_dict[f'{name}_y_torque'] = 0 if dx == 0 else f'{dx}*{name}_y' if force.unknown else part * dx
 
         for node in self.get_nodes():
             nid = f'node_{node.id}'
@@ -326,30 +316,6 @@ class Beam(IDNumerator):
                 add_force_parts(f'{nid}_vertical', node.support.vertical_force, node.x, node.y)
                 add_force_parts(f'{nid}_horizontal', node.support.horizontal_force, node.x, node.y)
                 t_dict[f'{nid}_torque'] = '?' if node.support.torque.unknown else node.support.torque.value
-
-            elif node.hinge:
-                hinge = node.hinge
-                if hinge.body1 != self and hinge.body2 != self:
-                    continue
-
-                prefix = f'hinge_{hinge.id}'
-                is_first = hinge.body1 == self
-
-                name_x = f'{prefix}_force_x'
-                name_y = f'{prefix}_force_y'
-
-                if is_first:
-                    fx_dict[name_x] = '?'
-                    fy_dict[name_y] = '?'
-
-                    t_dict[f'{name_x}_torque'] = f'{-node.y}*{name_x}' if node.y != 0 else 0
-                    t_dict[f'{name_y}_torque'] = f'{node.x}*{name_y}' if node.x != 0 else 0
-                else:
-                    fx_dict[f'{name_x}_opp'] = f'-{name_x}'
-                    fy_dict[f'{name_y}_opp'] = f'-{name_y}'
-
-                    t_dict[f'{name_x}_opp_torque'] = f'{-node.y}*{name_x}_opp' if node.y != 0 else 0
-                    t_dict[f'{name_y}_opp_torque'] = f'{node.x}*{name_y}_opp' if node.x != 0 else 0
 
         for segment in self.get_segments():
             sid = f'segment_{segment.id}'
@@ -378,61 +344,9 @@ class Beam(IDNumerator):
                     secondary_eqs.append(sp.Eq(sp.Symbol(key), sp.simplify(val)))
                 all_symbols.append(key)
 
-        return eqs, secondary_eqs, unknowns, all_symbols
+        if len(unknowns) > 3:
+            raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
 
-    def solve(self):
-        if len(self.graph.nodes) == 0:
-            raise NoBeamError("Нет балки!")
-        
-        if all(node.support is None for node in self.get_nodes()):
-            raise NoSupportsError("Вы не добавили опор!")
-
-        if not nx.is_connected(self.graph):
-            raise DividedBeamError("Балка состоит из несвязанных сегментов!")
-
-        self.reassign_ids()
-
-        subbeams = self.split_beam_by_hinges()
-
-        for b in subbeams:
-            print(b.pretty_print())
-        print()
-
-        eqs = []
-        secondary_eqs = []
-        unknowns_set = set()
-        all_symbols_set = set()
-
-        for beam in subbeams:
-            e, s, u, a = beam.build_equations()
-            eqs.extend(e)
-            secondary_eqs.extend(s)
-            unknowns_set.update(u)
-            all_symbols_set.update(a)
-
-        unknowns = list(unknowns_set)
-        all_symbols = list(all_symbols_set)
-
-        #eqs, secondary_eqs, unknowns, all_symbols = self.build_equations()
-
-        # if len(unknowns) > 3:
-        #     raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
-
-        print('---eqs---')
-        for i in eqs:
-            print(i)
-
-        print('---secondary_eqs---')
-        for i in secondary_eqs:
-            print(i)
-
-        print('---unknowns---')
-        print(unknowns)
-
-        print('---all_symbols---')
-        print(all_symbols)
-
-        print()
         solution = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
 
         if len(solution) < 1:
@@ -535,6 +449,7 @@ class Beam(IDNumerator):
                     support_data['torque']['unknown'],
                     custom_id=support_data['id']
                 )
+                # Принудительно выставляем ID внутренним объектам:
                 support.horizontal_force.id = support_data['horizontal_force']['id']
                 support.vertical_force.id = support_data['vertical_force']['id']
                 support.torque.id = support_data['torque']['id']
@@ -582,31 +497,175 @@ class Beam(IDNumerator):
         return '\n'.join(lines)
     
     def split_beam_by_hinges(self) -> list["Beam"]:
-        hinge_nodes = [n for n in self.graph.nodes if n.hinge is not None]
-        g_wo_hinges = self.graph.copy()
-        g_wo_hinges.remove_nodes_from(hinge_nodes)
-        components = list(nx.connected_components(g_wo_hinges))
-
+        visited = set()
         subbeams = []
 
-        for nodes in components:
-            extended_nodes = set(nodes)
+        def dfs_collect_nodes(start):
+            stack = [start]
+            local_nodes = set()
 
-            hinge_neighbors = []
-            for node in nodes:
+            while stack:
+                node = stack.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                local_nodes.add(node)
+
                 for neighbor in self.graph.neighbors(node):
+                    if neighbor in visited:
+                        continue
                     if neighbor.hinge is not None:
-                        extended_nodes.add(neighbor)
-                        hinge_neighbors.append((node, neighbor))
+                        local_nodes.add(neighbor)
+                        continue
+                    stack.append(neighbor)
 
-            full_subgraph = self.graph.subgraph(extended_nodes)
-            beam = Beam()
-            for u, v, data in full_subgraph.edges(data=True):
-                beam.add_segment(data['object'])
+            return local_nodes
 
-            for _, hinge_node in hinge_neighbors:
-                hinge_node.hinge.assign_body(beam)
+        for node in self.get_nodes():
+            if node in visited or node.hinge is not None:
+                continue
 
-            subbeams.append(beam)
+            group_nodes = dfs_collect_nodes(node)
+            subgraph = self.graph.subgraph(group_nodes)
+
+            subbeam = Beam()
+            for u, v, data in subgraph.edges(data=True):
+                subbeam.add_segment(data['object'])
+
+            subbeams.append(subbeam)
 
         return subbeams
+
+    def _collect_equilibrium_equations(self):
+        import sympy as sp
+
+        self.reassign_ids()
+
+        eqs = []
+        variables = []
+        fx, fy, mz = 0, 0, 0
+
+        for node in self.get_nodes():
+            x, y = node.x, node.y
+            if node.support:
+                h = node.support.horizontal_force
+                v = node.support.vertical_force
+                t = node.support.torque
+
+                if h.unknown:
+                    sx = sp.Symbol(f'node_{node.id}_horizontal_x') if not isinstance(h.value, sp.Basic) else h.value
+                    variables.append(sx)
+                    fx += sx
+                else:
+                    fx += h.part_x
+
+                if v.unknown:
+                    sy = sp.Symbol(f'node_{node.id}_vertical_y') if not isinstance(v.value, sp.Basic) else v.value
+                    variables.append(sy)
+                    fy += sy
+                else:
+                    fy += v.part_y
+
+                if t.unknown:
+                    st = sp.Symbol(f'node_{node.id}_torque') if not isinstance(t.value, sp.Basic) else t.value
+                    variables.append(st)
+                    mz += st
+                else:
+                    mz += t.value
+
+        for segment in self.get_segments():
+            x1, y1 = segment.node1.x, segment.node1.y
+            dx = segment.node2.x - x1
+            dy = segment.node2.y - y1
+
+            for force in segment.forces:
+                fx += force.part_x
+                fy += force.part_y
+
+                r = force.node1_dist / segment.length
+                px = x1 + r * dx
+                py = y1 + r * dy
+                mz += force.part_x * (py - 0) - force.part_y * (px - 0)
+
+            for torque in segment.torques:
+                mz += torque.value
+
+        eqs.extend([fx, fy, mz])
+        return eqs, variables
+    
+    def solve_composite(self) -> dict[str, float]:
+        import sympy as sp
+
+        parts = self.split_beam_by_hinges()
+        if len(parts) == 1:
+            return parts[0].solve()
+
+        equations = []
+        symbols = set()
+        solutions = {}
+
+        hinge_force_map = {}  # {hinge_id: [fx1, fx2], [fy1, fy2]}
+
+        for part_index, part in enumerate(parts):
+            for node in part.get_nodes():
+                if node.hinge:
+                    hid = node.hinge.id
+
+                    # создаём уникальные имена для каждой части
+                    x_sym = sp.Symbol(f"hinge_{hid}_part{part_index}_x")
+                    y_sym = sp.Symbol(f"hinge_{hid}_part{part_index}_y")
+                    symbols.update([x_sym, y_sym])
+
+                    # корректно добавим новую опору с символами
+                    node.add_support(Support(
+                        angle=0,
+                        force_x=x_sym,
+                        force_y=y_sym,
+                        torque=0,
+                        unknown_fx=True,
+                        unknown_fy=True,
+                        unknown_t=False
+                    ))
+
+                    if hid not in hinge_force_map:
+                        hinge_force_map[hid] = {"x": [], "y": []}
+                    hinge_force_map[hid]["x"].append(x_sym)
+                    hinge_force_map[hid]["y"].append(y_sym)
+
+        # Добавим уравнения: сумма сил в шарнире = 0
+        for hid, forces in hinge_force_map.items():
+            if len(forces["x"]) == 2:
+                equations.append(forces["x"][0] + forces["x"][1])
+            if len(forces["y"]) == 2:
+                equations.append(forces["y"][0] + forces["y"][1])
+
+        # Собираем уравнения равновесия всех подбалок
+        for part in parts:
+            try:
+                part_eqs, part_vars = part._collect_equilibrium_equations()
+                equations.extend(part_eqs)
+                symbols.update(part_vars)
+            except Exception as e:
+                raise UnsolvableError(f"Ошибка при разборе подбалки: {e}")
+
+        # Решаем систему
+        try:
+            solved = sp.solve(equations, list(symbols), dict=True)
+            if not solved:
+                raise TooManyUnknownsError("Система не может быть решена.")
+            solved = solved[0]
+        except Exception as e:
+            raise UnsolvableError(f"Не удалось решить систему уравнений: {e}")
+
+        # Собираем финальные ответы
+        full_result = {}
+        for part in parts:
+            partial = part.solve(subs=solved)
+            full_result.update(self.format_readable_answers(partial))
+
+        # Добавим значения шарнирных сил
+        for k, v in solved.items():
+            if isinstance(k, sp.Symbol):
+                full_result[str(k)] = float(v)
+
+        return full_result
