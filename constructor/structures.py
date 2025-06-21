@@ -301,7 +301,6 @@ class Beam(IDNumerator):
                 readable_answer[f"{direction.capitalize()} сила в шарнире {hinge_id}"] = value
 
             else:
-                # fallback — просто ключ
                 readable_answer[key] = value
 
         return readable_answer
@@ -412,8 +411,6 @@ class Beam(IDNumerator):
 
         unknowns = list(unknowns_set)
         all_symbols = list(all_symbols_set)
-
-        #eqs, secondary_eqs, unknowns, all_symbols = self.build_equations()
 
         # if len(unknowns) > 3:
         #     raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
