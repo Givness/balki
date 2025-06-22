@@ -34,3 +34,25 @@ segments[2].add_force(Force(10000, 180, math.sqrt(5)/2, 1, False))
 #beam.save_to_file("beam.bm")
 
 print(beam.solve())
+
+# parts = beam.split_beam_by_hinges()
+# for i in parts:
+#     print(i.pretty_print())
+
+#     eqs, secondary_eqs, unknowns, all_symbols = i.build_equations()
+
+#     print('---eqs---')
+#     for i in eqs:
+#         print(i)
+
+#     print('---secondary_eqs---')
+#     for i in secondary_eqs:
+#         print(i)
+
+#     print('---unknowns---')
+#     print(unknowns)
+
+#     print('---all_symbols---')
+#     print(all_symbols)
+
+#     print()

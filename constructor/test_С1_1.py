@@ -27,7 +27,7 @@ segments[0].add_force(Force(10, 215, 0, 1, False))
 segments[1].add_torque(Torque(8, 0, False))
 segments[1].add_force(Force(4, 270, 2.5, 5, False))
 
-beam.save_to_file("beam.bm")
+#beam.save_to_file("beam.bm")
 
 # Решаем систему
 print(beam.solve())
