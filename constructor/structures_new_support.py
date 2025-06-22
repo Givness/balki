@@ -106,20 +106,7 @@ class Support(IDNumerator):
         super().__init__(custom_id)
         self.angle: float = angle % 360
         magnitude, force_angle = Force.combine_force_projections(force_x, force_y)
-
-        ux = unknown_fx
-        uy = unknown_fy
-
-        if angle == 0 or angle == 180:
-            pass
-        elif angle == 90 or angle == 270:
-            ux = unknown_fy
-            uy = unknown_fx
-        else:
-            ux = True
-            uy = True
-
-        self.force: Force = Force(magnitude, angle + force_angle, 0, 1, unknown_x=ux, unknown_y=uy)
+        self.force: Force = Force(magnitude, angle + force_angle, 0, 1, unknown_x=unknown_fx, unknown_y=unknown_fy)
         self.torque: Torque = Torque(torque, 0, unknown_t)
 
     def __repr__(self):

@@ -8,15 +8,7 @@ from ids import IDNumerator
 
 
 class Force(IDNumerator):
-    def __init__(self,
-                 value: float,
-                 angle: float,
-                 node1_dist: float,
-                 length: float = 1,
-                 unknown: bool = False,
-                 unknown_x: bool = False,
-                 unknown_y: bool = False,
-                 custom_id: int | None = None):
+    def __init__(self, value: float, angle: float, node1_dist: float, length: float = 1, unknown: bool = False, custom_id: int | None = None):
         super().__init__(custom_id)
 
         if value < 0: raise NegativeOrZeroValueError("Значение силы не может быть отрицательным!")
@@ -30,17 +22,7 @@ class Force(IDNumerator):
         if length <= 0: raise NegativeOrZeroValueError("Длина действия силы должна быть положительной!")
         self.length: float = length
 
-        self.unknown_x: bool = unknown or unknown_x
-        self.unknown_y: bool = unknown or unknown_y
-
-    @staticmethod
-    def combine_force_projections(fx: float, fy: float) -> tuple[float, float]:
-        magnitude = math.hypot(fx, fy)
-        angle_rad = math.atan2(fy, fx)
-        angle_deg = math.degrees(angle_rad)
-        if angle_deg < 0:
-            angle_deg += 360
-        return magnitude, angle_deg
+        self.unknown: bool = unknown
 
     @property
     def part_x(self):
@@ -79,7 +61,7 @@ class Force(IDNumerator):
     def pretty_print(self, indent=0):
         pad = ' ' * indent
         return (f"{pad}Force#{self.id}: val={self.value}, angle={self.angle}°, "
-                f"dist={self.node1_dist}, len={self.length}, unknown_x={self.unknown_x}, unknown_y={self.unknown_y}")
+                f"dist={self.node1_dist}, len={self.length}, unknown={'Y' if self.unknown else 'N'}")
 
 
 class Torque(IDNumerator):
@@ -105,25 +87,12 @@ class Support(IDNumerator):
     def __init__(self, angle: float, force_x: float, force_y: float, torque: float, unknown_fx: bool, unknown_fy: bool, unknown_t: bool, custom_id: int | None = None):
         super().__init__(custom_id)
         self.angle: float = angle % 360
-        magnitude, force_angle = Force.combine_force_projections(force_x, force_y)
-
-        ux = unknown_fx
-        uy = unknown_fy
-
-        if angle == 0 or angle == 180:
-            pass
-        elif angle == 90 or angle == 270:
-            ux = unknown_fy
-            uy = unknown_fx
-        else:
-            ux = True
-            uy = True
-
-        self.force: Force = Force(magnitude, angle + force_angle, 0, 1, unknown_x=ux, unknown_y=uy)
+        self.horizontal_force: Force = Force(force_x, angle, 0, 1, unknown_fx)
+        self.vertical_force: Force = Force(force_y, angle + 90, 0, 1, unknown_fy)
         self.torque: Torque = Torque(torque, 0, unknown_t)
 
     def __repr__(self):
-        return f"Support(angle={self.angle}, force={self.force}, torque={self.torque})"
+        return f"Support(angle={self.angle}, force_x={self.horizontal_force}, force_y={self.vertical_force}, torque={self.torque})"
     
     class Type(Enum):
         FIXED = 0
@@ -133,13 +102,14 @@ class Support(IDNumerator):
     @property
     def get_type(self):
         if self.torque.value != 0 or self.torque.unknown: return Support.Type.FIXED
-        elif self.force.part_x != 0 or self.unknown_fx: return Support.Type.PINNED
+        elif self.horizontal_force.value != 0 or self.horizontal_force.unknown: return Support.Type.PINNED
         else: return Support.Type.ROLLER
 
     def pretty_print(self, indent=0):
         pad = ' ' * indent
         result = [f"{pad}Support#{self.id}: angle={self.angle}°"]
-        result.append(self.force.pretty_print(indent + 2))
+        result.append(self.horizontal_force.pretty_print(indent + 2))
+        result.append(self.vertical_force.pretty_print(indent + 2))
         result.append(self.torque.pretty_print(indent + 2))
         return '\n'.join(result)
 
@@ -147,16 +117,30 @@ class Support(IDNumerator):
 class Hinge(IDNumerator):
     def __init__(self, custom_id: int | None = None):
         super().__init__(custom_id)
-        self.bodies: list["Beam"] = []
+        self.body1: "Beam" | None = None
+        self.body2: "Beam" | None = None
 
     def assign_body(self, beam: "Beam"):
-        if beam not in self.bodies:
-            self.bodies.append(beam)
-
+        if self.body1 is None:
+            self.body1 = beam
+        elif self.body1 == beam:
+            return
+        elif self.body2 is None:
+            self.body2 = beam
+        elif self.body2 == beam:
+            return
+        else:
+            raise ValueError(f"Шарнир {self.id} соединяет более двух тел: {self.body1}, {self.body2}, {beam}")
+        
     def pretty_print(self, indent=0):
         pad = ' ' * indent
-        parts = ', '.join(f'Beam#{b.id}' for b in self.bodies)
-        return f"{pad}Hinge#{self.id}: bodies=[{parts}]"
+        parts = []
+        if self.body1:
+            parts.append(f"body1=Beam#{self.body1.id}")
+        if self.body2:
+            parts.append(f"body2=Beam#{self.body2.id}")
+        joined = ', '.join(parts)
+        return f"{pad}Hinge#{self.id}" + (f": {joined}" if joined else "")
 
 class Node(IDNumerator):
     def __init__(self, x: float, y: float, custom_id: int | None = None):
@@ -272,7 +256,11 @@ class Beam(IDNumerator):
                 Support._used_ids.add(Support._next_id)
                 Support._next_id += 1
 
-                node.support.force.id = Force._next_id
+                node.support.horizontal_force.id = Force._next_id
+                Force._used_ids.add(Force._next_id)
+                Force._next_id += 1
+
+                node.support.vertical_force.id = Force._next_id
                 Force._used_ids.add(Force._next_id)
                 Force._next_id += 1
 
@@ -307,12 +295,10 @@ class Beam(IDNumerator):
                 elif '_torque' in key:
                     readable_answer[f"Момент в узле {node_id}"] = value
 
-            elif key.startswith('hinge_') and '_for_beam_' in key:
-                parts = key.split('_')
-                hinge_id = parts[1]
-                beam_id = int(parts[4]) - 1
+            elif key.startswith('hinge_') and ('_force_x' in key or '_force_y' in key):
+                hinge_id = key.split('_')[1]
                 direction = 'горизонтальная' if '_force_x' in key else 'вертикальная'
-                readable_answer[f"{direction.capitalize()} реакция в шарнире {hinge_id} для балки {beam_id}"] = value
+                readable_answer[f"{direction.capitalize()} сила в шарнире {hinge_id}"] = value
 
             else:
                 readable_answer[key] = value
@@ -323,54 +309,46 @@ class Beam(IDNumerator):
         fx_dict, fy_dict, t_dict = {}, {}, {}
 
         def add_force_parts(name: str, force: Force, x: float, y: float):
-            part = force.part_x
-            fx_dict[f'{name}_x'] = '?' if force.unknown_x else part
-            t_dict[f'{name}_x_torque'] = 0 if y == 0 else f'{-y}*{name}_x' if force.unknown_x else part * -y
+            if force.get_type != Force.Type.VERTICAL:
+                part = force.part_x
+                fx_dict[f'{name}_x'] = '?' if force.unknown else part
+                t_dict[f'{name}_x_torque'] = 0 if y == 0 else f'{-y}*{name}_x' if force.unknown else part * -y
 
-            part = force.part_y
-            fy_dict[f'{name}_y'] = '?' if force.unknown_y else part
-            t_dict[f'{name}_y_torque'] = 0 if x == 0 else f'{x}*{name}_y' if force.unknown_y else part * x
-
-        hinges_equations = []
+            if force.get_type != Force.Type.HORIZONTAL:
+                part = force.part_y
+                fy_dict[f'{name}_y'] = '?' if force.unknown else part
+                t_dict[f'{name}_y_torque'] = 0 if x == 0 else f'{x}*{name}_y' if force.unknown else part * x
 
         for node in self.get_nodes():
             if node.support:
                 nid = f'node_{node.id}'
-                add_force_parts(f'{nid}', node.support.force, node.x, node.y)
+                add_force_parts(f'{nid}_vertical', node.support.vertical_force, node.x, node.y)
+                add_force_parts(f'{nid}_horizontal', node.support.horizontal_force, node.x, node.y)
                 t_dict[f'{nid}_torque'] = '?' if node.support.torque.unknown else node.support.torque.value
 
             elif node.hinge:
                 hinge = node.hinge
-                if self not in hinge.bodies:
+                if hinge.body1 != self and hinge.body2 != self:
                     continue
 
-                prefix = f'hinge_{hinge.id}_for_beam_{self.id}'
+                prefix = f'hinge_{hinge.id}'
+                is_first = hinge.body1 == self
+
                 name_x = f'{prefix}_force_x'
                 name_y = f'{prefix}_force_y'
 
-                fx_dict[name_x] = '?'
-                fy_dict[name_y] = '?'
+                if is_first:
+                    fx_dict[name_x] = '?'
+                    fy_dict[name_y] = '?'
 
-                t_dict[f'{name_x}_torque'] = f'{-node.y}*{name_x}' if node.y != 0 else 0
-                t_dict[f'{name_y}_torque'] = f'{node.x}*{name_y}' if node.x != 0 else 0
+                    t_dict[f'{name_x}_torque'] = f'{-node.y}*{name_x}' if node.y != 0 else 0
+                    t_dict[f'{name_y}_torque'] = f'{node.x}*{name_y}' if node.x != 0 else 0
+                else:
+                    fx_dict[f'{name_x}_opp'] = f'-{name_x}'
+                    fy_dict[f'{name_y}_opp'] = f'-{name_y}'
 
-                if hinge.bodies[0] == self:
-                    hinges_equations.extend([
-                        sp.Eq(sp.simplify(
-                            ' + '.join(f'hinge_{hinge.id}_for_beam_{body.id}_force_x' for body in hinge.bodies)
-                        ), 0),
-
-                        sp.Eq(sp.simplify(
-                            ' + '.join(f'hinge_{hinge.id}_for_beam_{body.id}_force_y' for body in hinge.bodies)
-                        ), 0),
-
-                        sp.Eq(sp.simplify(
-                            ' + '.join(
-                                f'hinge_{hinge.id}_for_beam_{body.id}_force_x_torque + hinge_{hinge.id}_for_beam_{body.id}_force_y_torque'
-                                for body in hinge.bodies)
-                        ), 0),
-                    ])
-
+                    t_dict[f'{name_x}_opp_torque'] = f'{-node.y}*{name_x}_opp' if node.y != 0 else 0
+                    t_dict[f'{name_y}_opp_torque'] = f'{node.x}*{name_y}_opp' if node.x != 0 else 0
 
         for segment in self.get_segments():
             sid = f'segment_{segment.id}'
@@ -386,8 +364,6 @@ class Beam(IDNumerator):
             sp.Eq(sp.simplify(' + '.join(fy_dict.keys())), 0),
             sp.Eq(sp.simplify(' + '.join(t_dict.keys())), 0)
         ]
-
-        eqs.extend(hinges_equations)
 
         secondary_eqs = []
         unknowns = []
@@ -459,7 +435,6 @@ class Beam(IDNumerator):
         if len(solution) < 1:
             raise UnsolvableError("Невозможно найти решение либо система подвижна!")
 
-        print({k: v for k, v in solution.items() if str(k) in unknowns})
         raw_answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
 
         return Beam.format_readable_answers(raw_answer)
@@ -610,34 +585,25 @@ class Beam(IDNumerator):
         components = list(nx.connected_components(g_wo_hinges))
 
         subbeams = []
-        node_to_subbeam = {}
 
         for nodes in components:
             extended_nodes = set(nodes)
 
+            hinge_neighbors = []
             for node in nodes:
                 for neighbor in self.graph.neighbors(node):
                     if neighbor.hinge is not None:
                         extended_nodes.add(neighbor)
+                        hinge_neighbors.append((node, neighbor))
 
-            subgraph = self.graph.subgraph(extended_nodes)
+            full_subgraph = self.graph.subgraph(extended_nodes)
             beam = Beam()
-            for u, v, data in subgraph.edges(data=True):
+            for u, v, data in full_subgraph.edges(data=True):
                 beam.add_segment(data['object'])
 
-            for node in subgraph.nodes:
-                node_to_subbeam[node] = beam
+            for _, hinge_node in hinge_neighbors:
+                hinge_node.hinge.assign_body(beam)
 
             subbeams.append(beam)
-
-        for hinge_node in hinge_nodes:
-            hinge = hinge_node.hinge
-            if not hinge:
-                continue
-
-            for neighbor in self.graph.neighbors(hinge_node):
-                beam = node_to_subbeam.get(neighbor)
-                if beam:
-                    hinge.assign_body(beam)
 
         return subbeams
