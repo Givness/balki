@@ -1,4 +1,4 @@
-#Яблонский С4 30 вариант (https://teor-meh.ru/catalog/s4/variant_29_4.html)
+#Яблонский С4 5 вариант (https://teor-meh.ru/catalog/s4/variant_5_5.html)
 
 from structures import *
 
