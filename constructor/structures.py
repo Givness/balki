@@ -364,11 +364,11 @@ class Beam(IDNumerator):
                             ' + '.join(f'hinge_{hinge.id}_for_beam_{body.id}_force_y' for body in hinge.bodies)
                         ), 0),
 
-                        sp.Eq(sp.simplify(
-                            ' + '.join(
-                                f'hinge_{hinge.id}_for_beam_{body.id}_force_x_torque + hinge_{hinge.id}_for_beam_{body.id}_force_y_torque'
-                                for body in hinge.bodies)
-                        ), 0),
+                        # sp.Eq(sp.simplify(
+                        #     ' + '.join(
+                        #         f'hinge_{hinge.id}_for_beam_{body.id}_force_x_torque + hinge_{hinge.id}_for_beam_{body.id}_force_y_torque'
+                        #         for body in hinge.bodies)
+                        # ), 0),
                     ])
 
 
