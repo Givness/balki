@@ -228,14 +228,23 @@ class GridWidget(QWidget):
                 painter.translate(x, y)
                 painter.rotate(-node.support.angle)
 
-                match node.support.get_type:
+                match node.support.support_type:
                     case Support.Type.FIXED: image = QPixmap("images\\support0.svg")
                     case Support.Type.PINNED: image = QPixmap("images\\support1.svg")
                     case Support.Type.ROLLER: image = QPixmap("images\\support2.svg")
                 painter.drawPixmap(-size // 2, -size // 2 + 12, size, size, image)
                 painter.restore()
 
-            painter.setBrush(QColor(0, 0, 255, 127))
+            node_brush = QColor(0, 0, 255, 127)
+            node_text_pen = Qt.GlobalColor.blue
+            if node.hinge:
+                size = int(2 * self.scale)
+                size = 35 if size > 35 else size
+                painter.drawPixmap(int(x - size // 2), int(y - size // 2), size, size, QPixmap("images\\hinge.svg"))
+                node_text_pen = Qt.GlobalColor.red
+                node_brush = QColor(255, 0, 0, 127)
+
+            painter.setBrush(node_brush)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(QPointF(x, y), node_radius * 2, node_radius * 2)
 
@@ -250,7 +259,7 @@ class GridWidget(QWidget):
             painter.drawRect(text_rect)
 
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(Qt.GlobalColor.blue)
+            painter.setPen(node_text_pen)
             painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
             count += 1

@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
 from structures import *
 from grid import GridWidget
 from dialogs import DialogManager
+from serialization import *
 
 
 class MainWindow(QWidget):
@@ -31,6 +32,10 @@ class MainWindow(QWidget):
         add_torque_button = QPushButton("Добавить момент")
         add_torque_button.clicked.connect(self.dialogs.open_torque_dialog)
         left_layout.addWidget(add_torque_button)
+
+        add_hinge_button = QPushButton("Добавить шарнир")
+        add_hinge_button.clicked.connect(self.dialogs.open_hinge_dialog)
+        left_layout.addWidget(add_hinge_button)
 
         solve_button = QPushButton("Посчитать")
         solve_button.clicked.connect(self.dialogs.open_solve_dialog)
@@ -71,7 +76,7 @@ class MainWindow(QWidget):
             if not filename.endswith(".bm"):
                 filename += ".bm"
             try:
-                self.grid_widget.beam.save_to_file(filename)
+                save_beam_to_file(self.grid_widget.beam, filename)
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка сохранения", str(e))
 
@@ -85,7 +90,7 @@ class MainWindow(QWidget):
             box.exec()
 
             if box.clickedButton() != button_yes:
-                return  # Пользователь отказался
+                return
 
         filename, _ = QFileDialog.getOpenFileName(
             self,
@@ -94,11 +99,11 @@ class MainWindow(QWidget):
             "Файлы балки (*.bm);;Все файлы (*)"
         )
         if not filename:
-            return  # Пользователь отменил выбор файла
+            return
 
         try:
             self.clear_field()
-            self.grid_widget.beam = Beam.load_from_file(filename)
+            load_beam_from_file(filename, self.grid_widget.beam)
             self.grid_widget.update()
         except Exception as e:
             QMessageBox.critical(self, "Ошибка загрузки", str(e))
@@ -115,7 +120,7 @@ class MainWindow(QWidget):
             self.clear_field()
 
     def clear_field(self):
-        for cls in [Force, Torque, Support, Node, BeamSegment, Beam]:
+        for cls in [Force, Torque, Support, Hinge, Node, BeamSegment, Beam]:
             cls._next_id = 1
             cls._used_ids.clear()
 

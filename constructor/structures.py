@@ -102,39 +102,46 @@ class Torque(IDNumerator):
 
 
 class Support(IDNumerator):
-    def __init__(self, angle: float, force_x: float, force_y: float, torque: float, unknown_fx: bool, unknown_fy: bool, unknown_t: bool, custom_id: int | None = None):
+
+    class Type(Enum):
+        FIXED = 0
+        PINNED = 1
+        ROLLER = 2
+
+    def __init__(self,
+                 support_type: Type,
+                 angle: float,
+                 force_x: float,
+                 force_y: float,
+                 torque: float,
+                 unknown_fx: bool,
+                 unknown_fy: bool,
+                 unknown_t: bool,
+                 custom_id: int | None = None,
+                 is_new: bool = True):
         super().__init__(custom_id)
+        self.support_type = support_type
         self.angle: float = angle % 360
         magnitude, force_angle = Force.combine_force_projections(force_x, force_y)
 
         ux = unknown_fx
         uy = unknown_fy
 
-        if angle == 0 or angle == 180:
-            pass
-        elif angle == 90 or angle == 270:
-            ux = unknown_fy
-            uy = unknown_fx
-        else:
-            ux = True
-            uy = True
+        if is_new:
+            if angle == 0 or angle == 180:
+                pass
+            elif angle == 90 or angle == 270:
+                ux = unknown_fy
+                uy = unknown_fx
+            else:
+                ux = True
+                uy = True
 
         self.force: Force = Force(magnitude, angle + force_angle, 0, 1, unknown_x=ux, unknown_y=uy)
         self.torque: Torque = Torque(torque, 0, unknown_t)
 
     def __repr__(self):
         return f"Support(angle={self.angle}, force={self.force}, torque={self.torque})"
-    
-    class Type(Enum):
-        FIXED = 0
-        PINNED = 1
-        ROLLER = 2
-
-    @property
-    def get_type(self):
-        if self.torque.value != 0 or self.torque.unknown: return Support.Type.FIXED
-        elif self.force.part_x != 0 or self.unknown_fx: return Support.Type.PINNED
-        else: return Support.Type.ROLLER
 
     def pretty_print(self, indent=0):
         pad = ' ' * indent
@@ -466,131 +473,6 @@ class Beam(IDNumerator):
 
     def __repr__(self):
         return f"Beam(segments={self.get_segments()})"
-    
-    def to_dict(self):
-        return {
-            'nodes': [
-                {
-                    'id': node.id,
-                    'x': node.x,
-                    'y': node.y,
-                    'support': {
-                        'id': node.support.id,
-                        'angle': node.support.angle,
-                        'horizontal_force': {
-                            'id': node.support.horizontal_force.id,
-                            'value': node.support.horizontal_force.value,
-                            'angle': node.support.horizontal_force.angle,
-                            'node1_dist': node.support.horizontal_force.node1_dist,
-                            'length': node.support.horizontal_force.length,
-                            'unknown': node.support.horizontal_force.unknown
-                        },
-                        'vertical_force': {
-                            'id': node.support.vertical_force.id,
-                            'value': node.support.vertical_force.value,
-                            'angle': node.support.vertical_force.angle,
-                            'node1_dist': node.support.vertical_force.node1_dist,
-                            'length': node.support.vertical_force.length,
-                            'unknown': node.support.vertical_force.unknown
-                        },
-                        'torque': {
-                            'id': node.support.torque.id,
-                            'value': node.support.torque.value,
-                            'node1_dist': node.support.torque.node1_dist,
-                            'unknown': node.support.torque.unknown
-                        }
-                    } if node.support else None
-                }
-                for node in self.get_nodes()
-            ],
-            'segments': [
-                {
-                    'id': segment.id,
-                    'node1_id': segment.node1.id,
-                    'node2_id': segment.node2.id,
-                    'forces': [
-                        {
-                            'id': force.id,
-                            'value': force.value,
-                            'angle': force.angle,
-                            'node1_dist': force.node1_dist,
-                            'length': force.length,
-                            'unknown': force.unknown
-                        } for force in segment.forces
-                    ],
-                    'torques': [
-                        {
-                            'id': torque.id,
-                            'value': torque.value,
-                            'node1_dist': torque.node1_dist,
-                            'unknown': torque.unknown
-                        } for torque in segment.torques
-                    ]
-                }
-                for segment in self.get_segments()
-            ]
-        }
-
-    def save_to_file(self, filename: str = "beam.bm"):
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=4)
-
-    @classmethod
-    def load_from_file(cls, filename: str = "beam.bm"):
-        with open(filename, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        id_node_map = {}
-        beam = cls()
-
-        for node_data in data['nodes']:
-            node = Node(node_data['x'], node_data['y'], custom_id=node_data['id'])
-            if node_data['support']:
-                support_data = node_data['support']
-                support = Support(
-                    support_data['angle'],
-                    support_data['horizontal_force']['value'],
-                    support_data['vertical_force']['value'],
-                    support_data['torque']['value'],
-                    support_data['horizontal_force']['unknown'],
-                    support_data['vertical_force']['unknown'],
-                    support_data['torque']['unknown'],
-                    custom_id=support_data['id']
-                )
-                support.horizontal_force.id = support_data['horizontal_force']['id']
-                support.vertical_force.id = support_data['vertical_force']['id']
-                support.torque.id = support_data['torque']['id']
-                node.add_support(support)
-            id_node_map[node.id] = beam.add_node(node)
-
-        for segment_data in data['segments']:
-            node1 = id_node_map[segment_data['node1_id']]
-            node2 = id_node_map[segment_data['node2_id']]
-            segment = BeamSegment(node1, node2, custom_id=segment_data['id'])
-
-            for force_data in segment_data['forces']:
-                force = Force(
-                    force_data['value'],
-                    force_data['angle'],
-                    force_data['node1_dist'],
-                    force_data['length'],
-                    force_data['unknown'],
-                    custom_id=force_data['id']
-                )
-                segment.add_force(force)
-
-            for torque_data in segment_data['torques']:
-                torque = Torque(
-                    torque_data['value'],
-                    torque_data['node1_dist'],
-                    torque_data['unknown'],
-                    custom_id=torque_data['id']
-                )
-                segment.add_torque(torque)
-
-            beam.add_segment(segment)
-
-        return beam
     
     def pretty_print(self, indent=0):
         pad = ' ' * indent

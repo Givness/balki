@@ -114,6 +114,18 @@ class TorqueDialog(BaseDialog):
         except Exception:
             QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
 
+class HingeDialog(BaseDialog):
+        def __init__(self, parent=None, default_values=None):
+            super().__init__("Добавить шарнир", ["Номер узла:"], [QLineEdit()], parent, default_values)
+
+        def validate_and_accept(self):
+            try:
+                node_id = int(self.inputs[0].text())
+                self._data = (node_id)
+                self.accept()
+            except Exception:
+                QMessageBox.critical(self, "Ошибка!", str(IncorrectInputError("Введены некорректные данные!")))
+
 class SolveDialog(QDialog):
     def __init__(self, answers: dict[str, float], parent=None):
         super().__init__(parent)
@@ -164,6 +176,7 @@ class DialogManager:
             ufx = support_type_index != Support.Type.ROLLER.value
             ut = support_type_index == Support.Type.FIXED.value
             self.grid_widget.node_mapping[node_number].add_support(Support(angle, 0, 0, 0, ufx, True, ut))
+            self.grid_widget.node_mapping[node_number].hinge = None
 
         self.open_dialog(SupportDialog, apply)
 
@@ -184,6 +197,16 @@ class DialogManager:
             self.grid_widget.segment_mapping[segment_number].add_torque(Torque(value, offset, False))
 
         self.open_dialog(TorqueDialog, apply)
+
+    def open_hinge_dialog(self):
+        def apply(data):
+            node_number = data
+            if node_number < 1 or node_number not in self.grid_widget.node_mapping:
+                raise NonExistentError(f"Узел {node_number} не существует!")
+            node = self.grid_widget.node_mapping[node_number].add_hinge()
+            self.grid_widget.node_mapping[node_number].support = None
+
+        self.open_dialog(HingeDialog, apply)
 
     def open_solve_dialog(self):
         try:
