@@ -28,8 +28,8 @@ class GridWidget(QWidget):
         self.draw_grid(painter, center, bounds, spacing, sub_spacing)
         self.draw_axes(painter, center)
         self.draw_labels(painter, center, bounds, spacing)
-        self.draw_beams(painter, center)
         self.draw_forces_and_torques(painter, center)
+        self.draw_beams(painter, center)
         self.draw_nodes(painter, center)
 
     def calculate_bounds(self, center):
@@ -146,6 +146,24 @@ class GridWidget(QWidget):
             y2 = center.y() - segment.node2.y * self.scale
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
+            text = str(count)
+            metrics = painter.fontMetrics()
+            text_rect = metrics.tightBoundingRect(text)
+
+            rect_x = int(x1 + (x2 - x1) // 2 - (0 if y2 - y1 == 0 else 8)) 
+            rect_y = int(y1 + (y2 - y1) // 2 - (0 if x2 - x1 == 0 else 8))
+
+            text_rect.moveCenter(QPoint(rect_x, rect_y))
+            text_rect.adjust(-1, -1, 0, 1)
+
+            painter.setBrush(Qt.GlobalColor.white)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(text_rect)
+
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(100, 100, 100), 2))
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
+
             count += 1
 
     def draw_forces_and_torques(self, painter, center):
@@ -228,14 +246,23 @@ class GridWidget(QWidget):
                 painter.translate(x, y)
                 painter.rotate(-node.support.angle)
 
-                match node.support.get_type:
+                match node.support.support_type:
                     case Support.Type.FIXED: image = QPixmap("images\\support0.svg")
                     case Support.Type.PINNED: image = QPixmap("images\\support1.svg")
                     case Support.Type.ROLLER: image = QPixmap("images\\support2.svg")
                 painter.drawPixmap(-size // 2, -size // 2 + 12, size, size, image)
                 painter.restore()
 
-            painter.setBrush(QColor(0, 0, 255, 127))
+            node_brush = QColor(0, 0, 255, 127)
+            node_text_pen = Qt.GlobalColor.blue
+            if node.hinge:
+                size = int(2 * self.scale)
+                size = 35 if size > 35 else size
+                painter.drawPixmap(int(x - size // 2), int(y - size // 2), size, size, QPixmap("images\\hinge.svg"))
+                node_text_pen = Qt.GlobalColor.red
+                node_brush = QColor(255, 0, 0, 127)
+
+            painter.setBrush(node_brush)
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(QPointF(x, y), node_radius * 2, node_radius * 2)
 
@@ -250,7 +277,7 @@ class GridWidget(QWidget):
             painter.drawRect(text_rect)
 
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(Qt.GlobalColor.blue)
+            painter.setPen(node_text_pen)
             painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
             count += 1

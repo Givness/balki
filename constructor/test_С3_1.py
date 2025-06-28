@@ -1,6 +1,7 @@
 #https://www.youtube.com/watch?v=HSRy3sd34P8
 
 from structures import *
+from serialization import *
 
 # Создаём балку
 beam = Beam()
@@ -14,9 +15,9 @@ nodes = [
 ]
 
 # Добавляем опоры
-nodes[0].add_support(Support(0, 0, 0, 0, True, True, False))
+nodes[0].add_support(Support(Support.Type.PINNED, 0, 0, 0, 0, True, True, False))
 nodes[2].add_hinge()
-nodes[3].add_support(Support(0, 0, 0, 0, True, True, False))
+nodes[3].add_support(Support(Support.Type.PINNED, 0, 0, 0, 0, True, True, False))
 
 # Массив сегментов
 segments = [
@@ -31,28 +32,6 @@ segments[1].add_force(Force(15000, 270, 1, 1, False))
 segments[1].add_force(Force(2000, 270, 1, 2, False))
 segments[2].add_force(Force(10000, 180, math.sqrt(5)/2, 1, False))
 
-#beam.save_to_file("beam.bm")
+save_beam_to_file(beam, "beam_C3_1.bm")
 
 print(beam.solve())
-
-# parts = beam.split_beam_by_hinges()
-# for i in parts:
-#     print(i.pretty_print())
-
-#     eqs, secondary_eqs, unknowns, all_symbols = i.build_equations()
-
-#     print('---eqs---')
-#     for i in eqs:
-#         print(i)
-
-#     print('---secondary_eqs---')
-#     for i in secondary_eqs:
-#         print(i)
-
-#     print('---unknowns---')
-#     print(unknowns)
-
-#     print('---all_symbols---')
-#     print(all_symbols)
-
-#     print()
