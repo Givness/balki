@@ -175,7 +175,7 @@ class DialogManager:
                 raise NonExistentError(f"Узел {node_number} не существует!")
             ufx = support_type_index != Support.Type.ROLLER.value
             ut = support_type_index == Support.Type.FIXED.value
-            self.grid_widget.node_mapping[node_number].add_support(Support(angle, 0, 0, 0, ufx, True, ut))
+            self.grid_widget.node_mapping[node_number].add_support(Support(Support.Type(support_type_index), angle, 0, 0, 0, ufx, True, ut))
             self.grid_widget.node_mapping[node_number].hinge = None
 
         self.open_dialog(SupportDialog, apply)
