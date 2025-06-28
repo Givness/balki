@@ -28,8 +28,8 @@ class GridWidget(QWidget):
         self.draw_grid(painter, center, bounds, spacing, sub_spacing)
         self.draw_axes(painter, center)
         self.draw_labels(painter, center, bounds, spacing)
-        self.draw_beams(painter, center)
         self.draw_forces_and_torques(painter, center)
+        self.draw_beams(painter, center)
         self.draw_nodes(painter, center)
 
     def calculate_bounds(self, center):
@@ -145,6 +145,24 @@ class GridWidget(QWidget):
             x2 = center.x() + segment.node2.x * self.scale
             y2 = center.y() - segment.node2.y * self.scale
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+            text = str(count)
+            metrics = painter.fontMetrics()
+            text_rect = metrics.tightBoundingRect(text)
+
+            rect_x = int(x1 + (x2 - x1) // 2 - (0 if y2 - y1 == 0 else 8)) 
+            rect_y = int(y1 + (y2 - y1) // 2 - (0 if x2 - x1 == 0 else 8))
+
+            text_rect.moveCenter(QPoint(rect_x, rect_y))
+            text_rect.adjust(-1, -1, 0, 1)
+
+            painter.setBrush(Qt.GlobalColor.white)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRect(text_rect)
+
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(100, 100, 100), 2))
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
             count += 1
 
