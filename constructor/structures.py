@@ -443,33 +443,34 @@ class Beam(IDNumerator):
         unknowns = list(unknowns_set)
         all_symbols = list(all_symbols_set)
 
-        # if len(unknowns) > 3:
-        #     raise TooManyUnknownsError("Невозможно найти больше трёх неизвестных!")
+        if len(unknowns) > len(eqs):
+            raise TooManyUnknownsError("Слишком много неизвестных!")
 
-        print('---eqs---')
-        for i in eqs:
-            print(i)
+        # print('---eqs---')
+        # for i in eqs:
+        #     print(i)
 
-        print('---secondary_eqs---')
-        for i in secondary_eqs:
-            print(i)
+        # print('---secondary_eqs---')
+        # for i in secondary_eqs:
+        #     print(i)
 
-        print('---unknowns---')
-        print(unknowns)
+        # print('---unknowns---')
+        # print(unknowns)
 
-        print('---all_symbols---')
-        print(all_symbols)
+        # print('---all_symbols---')
+        # print(all_symbols)
 
-        print()
+        # print()
         solution = sp.solve(eqs + secondary_eqs, sp.symbols(all_symbols))
 
         if len(solution) < 1:
             raise UnsolvableError("Невозможно найти решение либо система подвижна!")
 
-        print({k: v for k, v in solution.items() if str(k) in unknowns})
-        raw_answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
-
-        return Beam.format_readable_answers(raw_answer)
+        try:
+            raw_answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
+            return Beam.format_readable_answers(raw_answer)
+        except Exception as e:
+            raise UnsolvableError("Невозможно найти решение либо система подвижна!")
 
     def __repr__(self):
         return f"Beam(segments={self.get_segments()})"
