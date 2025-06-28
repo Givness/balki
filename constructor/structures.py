@@ -467,7 +467,7 @@ class Beam(IDNumerator):
             raise UnsolvableError("Невозможно найти решение либо система подвижна!")
 
         try:
-            raw_answer = {str(k): float(v) for k, v in solution.items() if str(k) in unknowns}
+            raw_answer = {str(k): round(float(v), 2) for k, v in solution.items() if str(k) in unknowns}
             return Beam.format_readable_answers(raw_answer)
         except Exception as e:
             raise UnsolvableError("Невозможно найти решение либо система подвижна!")

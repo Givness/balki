@@ -136,7 +136,7 @@ class SolveDialog(QDialog):
         for key, value in answers.items():
             row = QHBoxLayout()
             row.addWidget(QLabel(f"{key}:"))
-            result_field = QLineEdit(str(value))
+            result_field = QLineEdit(str(f"{value:.2f}"))
             result_field.setReadOnly(True)
             row.addWidget(result_field)
             layout.addLayout(row)
