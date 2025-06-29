@@ -1,30 +1,34 @@
+# Импорт необходимых классов из PyQt6
 from PyQt6.QtWidgets import QWidget
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont, QPixmap, QTransform
 from PyQt6.QtCore import Qt, QPointF, QPoint
-from structures import *
+from structures import *  # Пользовательские структуры данных (например, Beam, Segment, Force и т.п.)
 import math
 
+# Класс GridWidget — виджет с координатной плоскостью и элементами балки
 class GridWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.scale = 40.0
-        self.min_scale = 1.0
-        self.max_scale = 1000.0
-        self.offset = QPointF(0, 0)
-        self.last_mouse_pos = None
-        self.coord_limit = 10000
-        self.margin = 40
-        self.beam = Beam()
+        self.scale = 40.0  # Масштаб по умолчанию (пикселей на 1 условную единицу)
+        self.min_scale = 1.0  # Минимальный масштаб
+        self.max_scale = 1000.0  # Максимальный масштаб
+        self.offset = QPointF(0, 0)  # Смещение центра координат относительно центра окна
+        self.last_mouse_pos = None  # Последняя позиция мыши при перемещении
+        self.coord_limit = 10000  # Ограничение по координатам (в логических единицах)
+        self.margin = 40  # Отступ от краёв (пока не используется)
+        self.beam = Beam()  # Объект балки, содержащий узлы, сегменты, нагрузки и т.д.
 
+    # Метод отрисовки при каждом обновлении окна
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.fillRect(self.rect(), Qt.GlobalColor.white)
+        painter.fillRect(self.rect(), Qt.GlobalColor.white)  # Заливка фона
 
-        center = QPointF(self.width() / 2, self.height() / 2) + self.offset
-        bounds = self.calculate_bounds(center)
-        spacing, sub_spacing = self.calculate_spacing()
+        center = QPointF(self.width() / 2, self.height() / 2) + self.offset  # Центр координат с учётом смещения
+        bounds = self.calculate_bounds(center)  # Границы видимой области (в логических координатах)
+        spacing, sub_spacing = self.calculate_spacing()  # Основное и дополнительное расстояние между линиями сетки
 
+        # Последовательно вызываем отрисовку всех элементов
         self.draw_grid(painter, center, bounds, spacing, sub_spacing)
         self.draw_axes(painter, center)
         self.draw_labels(painter, center, bounds, spacing)
@@ -32,6 +36,7 @@ class GridWidget(QWidget):
         self.draw_beams(painter, center)
         self.draw_nodes(painter, center)
 
+    # Вычисляет левую, правую, верхнюю и нижнюю границу в логических координатах
     def calculate_bounds(self, center):
         left = -(center.x()) / self.scale
         right = (self.width() - center.x()) / self.scale
@@ -39,21 +44,25 @@ class GridWidget(QWidget):
         bottom = (self.height() - center.y()) / self.scale
         return left, right, top, bottom
 
+    # Определяет шаг сетки в зависимости от текущего масштаба
     def calculate_spacing(self):
         steps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
         sub_steps = 4
         for step in steps:
-            if step * self.scale >= 60:
+            if step * self.scale >= 60:  # Если шаг в пикселях больше 60 — используем его
                 return step, step / sub_steps
-        return 1.0, 0.2
+        return 1.0, 0.2  # Значения по умолчанию
 
+    # Отрисовка сетки (мелкой и крупной)
     def draw_grid(self, painter, center, bounds, spacing, sub_spacing):
         left, right, top, bottom = bounds
 
+        # Мелкая (вспомогательная) сетка
         sub_grid_pen = QPen(QColor(220, 220, 220))
         sub_grid_pen.setWidth(0)
         painter.setPen(sub_grid_pen)
 
+        # Вертикальные линии вспомогательной сетки
         x = int(left // sub_spacing) * sub_spacing
         while x <= right:
             if -self.coord_limit <= x <= self.coord_limit:
@@ -61,6 +70,7 @@ class GridWidget(QWidget):
                 painter.drawLine(int(px), 0, int(px), self.height())
             x += sub_spacing
 
+        # Горизонтальные линии вспомогательной сетки
         y = int(top // sub_spacing) * sub_spacing
         while y <= bottom:
             if -self.coord_limit <= y <= self.coord_limit:
@@ -68,6 +78,7 @@ class GridWidget(QWidget):
                 painter.drawLine(0, int(py), self.width(), int(py))
             y += sub_spacing
 
+        # Основная сетка (более тёмные линии)
         grid_pen = QPen(Qt.GlobalColor.lightGray)
         grid_pen.setWidth(2)
         painter.setPen(grid_pen)
@@ -86,20 +97,23 @@ class GridWidget(QWidget):
                 painter.drawLine(0, int(py), self.width(), int(py))
             y += spacing
 
+    # Отрисовка осей координат
     def draw_axes(self, painter, center):
         axis_pen = QPen(Qt.GlobalColor.black)
         axis_pen.setWidth(2)
         painter.setPen(axis_pen)
 
         if -self.coord_limit <= 0 <= self.coord_limit:
-            painter.drawLine(int(center.x()), 0, int(center.x()), self.height())
-            painter.drawLine(0, int(center.y()), self.width(), int(center.y()))
+            painter.drawLine(int(center.x()), 0, int(center.x()), self.height())  # Вертикальная ось
+            painter.drawLine(0, int(center.y()), self.width(), int(center.y()))  # Горизонтальная ось
 
+    # Подписи координат вдоль сетки
     def draw_labels(self, painter, center, bounds, spacing):
         left, right, top, bottom = bounds
         painter.setPen(Qt.GlobalColor.black)
         painter.setFont(QFont("Arial", 9))
 
+        # Подписи по оси X
         x = int(left // spacing) * spacing
         while x <= right:
             if -self.coord_limit <= x <= self.coord_limit:
@@ -109,6 +123,7 @@ class GridWidget(QWidget):
                     self.draw_text(painter, int(px), self.height() - 6, str(int(x) if spacing >= 1 else f"{x:.2f}"))
             x += spacing
 
+        # Подписи по оси Y
         y = int(top // spacing) * spacing
         while y <= bottom:
             if -self.coord_limit <= y <= self.coord_limit:
@@ -118,6 +133,7 @@ class GridWidget(QWidget):
                     self.draw_text(painter, self.width() - 6, int(py), str(int(-y) if spacing >= 1 else f"{-y:.2f}"))
             y += spacing
 
+    # Универсальная функция отрисовки текста с белым фоном
     def draw_text(self, painter, x, y, text):
         metrics = painter.fontMetrics()
         text_rect = metrics.tightBoundingRect(text)
@@ -132,9 +148,10 @@ class GridWidget(QWidget):
         painter.setPen(Qt.GlobalColor.black)
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
+    # Отрисовка всех сегментов балки
     def draw_beams(self, painter, center):
         count = 1
-        self.segment_mapping = {}
+        self.segment_mapping = {}  # Словарь для хранения соответствия номера сегмента и объекта
         for segment in self.beam.get_segments():
             self.segment_mapping[count] = segment
 
@@ -166,6 +183,7 @@ class GridWidget(QWidget):
 
             count += 1
 
+    # Отрисовка всех сил и моментов на балке
     def draw_forces_and_torques(self, painter, center):
         for segment in self.beam.get_segments():
             x1 = center.x() + segment.node1.x * self.scale
@@ -178,6 +196,7 @@ class GridWidget(QWidget):
             for torque in segment.torques:
                 self.draw_torque(painter, x1, y1, x2, y2, segment.length, torque)
 
+    # Отрисовка одной силы (стрелка + подпись)
     def draw_force(self, painter, x1, y1, x2, y2, length, force):
         x = x1 + force.node1_dist * (x2 - x1) / length
         y = y1 + force.node1_dist * (y2 - y1) / length
@@ -195,6 +214,7 @@ class GridWidget(QWidget):
         text = f'{force.value} Н'
         self.draw_annotation(painter, x, y, size_x, force.angle, text)
 
+    # Отрисовка одного крутящего момента
     def draw_torque(self, painter, x1, y1, x2, y2, length, torque):
         x = x1 + torque.node1_dist * (x2 - x1) / length
         y = y1 + torque.node1_dist * (y2 - y1) / length
@@ -213,6 +233,7 @@ class GridWidget(QWidget):
         text = f'{torque.value} Нм'
         self.draw_annotation(painter, x, y, size, 0, text)
 
+    # Отрисовка поясняющей подписи к силе или моменту
     def draw_annotation(self, painter, x, y, size, angle, text):
         metrics = painter.fontMetrics()
         text_rect = metrics.tightBoundingRect(text)
@@ -229,6 +250,7 @@ class GridWidget(QWidget):
         painter.setPen(Qt.GlobalColor.black)
         painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
+    # Отрисовка всех узлов балки
     def draw_nodes(self, painter, center):
         node_radius = 2
         count = 1
@@ -282,10 +304,12 @@ class GridWidget(QWidget):
 
             count += 1
 
+    # Сброс смещения (центрируется координатная сетка)
     def resetOffset(self):
         self.offset = QPointF(0, 0)
         self.update()
 
+    # Обработка колесика мыши для увеличения/уменьшения масштаба
     def wheelEvent(self, event):
         zoom_in_factor = 1.1
         zoom_out_factor = 0.9
@@ -306,10 +330,12 @@ class GridWidget(QWidget):
         self.clamp_offset()
         self.update()
 
+    # При нажатии ЛКМ — сохраняем позицию
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.last_mouse_pos = event.position()
 
+    # При движении мыши с зажатой ЛКМ — смещаем сетку
     def mouseMoveEvent(self, event):
         if self.last_mouse_pos is not None:
             delta = event.position() - self.last_mouse_pos
@@ -318,9 +344,11 @@ class GridWidget(QWidget):
             self.clamp_offset()
             self.update()
 
+    # Отпускание кнопки мыши — обнуляем перемещение
     def mouseReleaseEvent(self, event):
         self.last_mouse_pos = None
 
+    # Ограничение на смещение — чтобы не "уйти" за пределы допустимых координат
     def clamp_offset(self):
         half_w = self.width() / 2
         half_h = self.height() / 2
