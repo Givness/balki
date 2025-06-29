@@ -19,6 +19,15 @@ class BaseDialog(QDialog):
         self.inputs = input_widgets  # Список виджетов ввода
         self._data = None  # Здесь будут храниться валидированные данные
 
+        for widget in self.inputs:
+            if isinstance(widget, QLineEdit):
+                widget.setStyleSheet("background-color: #f3e0dc; color: #000000;")  # белый фон, чёрный текст
+            elif isinstance(widget, QComboBox):
+                widget.setStyleSheet("background-color: #f3e0dc; color: 000000;")  # аналогично
+            elif isinstance(widget, QCheckBox):
+                # QCheckBox обычно не имеет фонового цвета для всего виджета, но можно попробовать:
+                widget.setStyleSheet("color: #000000;")  # цвет текста чекбокса
+
         layout = QVBoxLayout()
 
         # Создаём строки ввода с соответствующими подписями
@@ -34,8 +43,11 @@ class BaseDialog(QDialog):
 
         # Кнопка подтверждения
         button_ok = QPushButton("ОК")
+        button_ok.setStyleSheet("background-color: #f3e0dc")
         button_ok.clicked.connect(self.validate_and_accept)
         layout.addWidget(button_ok)
+
+        self.setStyleSheet("background-color: #d4a59a;")
 
         self.setLayout(layout)
 
